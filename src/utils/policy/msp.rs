@@ -1,5 +1,5 @@
 use crate::error::RabeError;
-use crate::utils::policy::pest::{parse, PolicyLanguage, PolicyType, PolicyValue};
+use crate::utils::policy::pest::{PolicyLanguage, PolicyType, PolicyValue, parse};
 use std::fmt::{Display, Formatter, Result as FormatResult};
 use std::string::String;
 
@@ -20,18 +20,15 @@ impl AbePolicy {
     /// # Arguments
     ///
     /// * `policy` - A policy in JSON format as String describing the policy
-    pub fn new(policy: &String, language: PolicyLanguage) -> Result<AbePolicy, RabeError> {
+    pub fn new(policy: &str, language: PolicyLanguage) -> Result<AbePolicy, RabeError> {
         AbePolicy::from_language(policy, language)
     }
 
-    pub fn from_language(
-        content: &String,
-        language: PolicyLanguage,
-    ) -> Result<AbePolicy, RabeError> {
-        return match parse(content, language) {
+    pub fn from_language(content: &str, language: PolicyLanguage) -> Result<AbePolicy, RabeError> {
+        match parse(content, language) {
             Ok(json) => calculate_msp(&json),
             Err(e) => Err(e),
-        };
+        }
     }
 
     pub fn from_policy(content: &PolicyValue) -> Result<AbePolicy, RabeError> {
@@ -45,7 +42,7 @@ impl Display for AbePolicy {
         let mut _m_str = String::from("[");
         for attribute in &self.pi {
             _pi_str.push('"');
-            _pi_str.push_str(&attribute);
+            _pi_str.push_str(attribute);
             _pi_str.push('"');
             _pi_str.push(',');
         }
@@ -90,36 +87,36 @@ pub fn calculate_msp(p: &PolicyValue) -> Result<AbePolicy, RabeError> {
         msp.m = permutation.apply_slice(&msp.m[..]);
         return Ok(msp);
     }
-    return Err(RabeError::new("lewko waters algorithm failed =("));
+    Err(RabeError::new("lewko waters algorithm failed =("))
 }
 /// Converting from Boolean Formulas to LSSS Matrices
 /// Lewko Waters: "Decentralizing Attribute-Based Encryption" Appendix G
 fn lw(msp: &mut AbePolicy, p: &PolicyValue, v: &Vec<i8>, _parent: Option<PolicyType>) -> bool {
     let mut v_tmp_left = Vec::new();
     let mut v_tmp_right = v.clone();
-    return match p {
+    match p {
         PolicyValue::String(attr) => {
             msp.m.insert(0, v_tmp_right);
             msp.pi.insert(0, attr.0.to_string());
             true
         }
         PolicyValue::Object(obj) => match obj.0 {
-            PolicyType::And => lw(msp, &obj.1.as_ref(), v, Some(PolicyType::And)),
-            PolicyType::Or => lw(msp, &obj.1.as_ref(), v, Some(PolicyType::Or)),
-            PolicyType::Leaf => lw(msp, &obj.1.as_ref(), v, Some(PolicyType::Leaf)),
+            PolicyType::And => lw(msp, obj.1.as_ref(), v, Some(PolicyType::And)),
+            PolicyType::Or => lw(msp, obj.1.as_ref(), v, Some(PolicyType::Or)),
+            PolicyType::Leaf => lw(msp, obj.1.as_ref(), v, Some(PolicyType::Leaf)),
         },
         PolicyValue::Array(policies) => {
             let len = policies.len();
             if len < 2 {
                 panic!("lw: policy with just a single attribute is not allowed");
             }
-            return match _parent {
+            match _parent {
                 Some(PolicyType::Or) => {
                     let mut _ret = true;
                     for policy in policies {
-                        _ret &= lw(msp, &policy, &v, Some(PolicyType::Or));
+                        _ret &= lw(msp, policy, v, Some(PolicyType::Or));
                     }
-                    return _ret;
+                    _ret
                 }
                 Some(PolicyType::And) => {
                     if len != 2 {
@@ -135,9 +132,9 @@ fn lw(msp: &mut AbePolicy, p: &PolicyValue, v: &Vec<i8>, _parent: Option<PolicyT
                 }
                 Some(PolicyType::Leaf) => false,
                 None => false,
-            };
+            }
         }
-    };
+    }
 }
 
 #[cfg(test)]

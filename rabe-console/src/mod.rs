@@ -30,7 +30,7 @@ use crate::rabe::{
 use borsh::{BorshDeserialize, BorshSerialize};
 use clap::{App, Arg, ArgMatches, SubCommand};
 #[cfg(feature = "serde")]
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 
 use rabe::schemes::mke08::Mke08PublicAttributeKey;
 #[cfg(feature = "serde")]
@@ -1495,14 +1495,14 @@ fn ser_dec<T: BorshDeserialize>(file_name: &String) -> Result<T, RabeError> {
                 return Err(RabeError::new(&format!(
                     "try_from_slice: {}",
                     e.to_string().as_str()
-                )))
+                )));
             }
         },
         Err(e) => {
             return Err(RabeError::new(&format!(
                 "ser_dec_bin: {}",
                 e.to_string().as_str()
-            )))
+            )));
         }
     }
 }
@@ -1516,14 +1516,14 @@ fn ser_dec<T: DeserializeOwned>(file_name: &String) -> Result<T, RabeError> {
                 return Err(RabeError::new(&format!(
                     "from_slice: {}",
                     e.to_string().as_str()
-                )))
+                )));
             }
         },
         Err(e) => {
             return Err(RabeError::new(&format!(
                 "ser_dec_bin: {}",
                 e.to_string().as_str()
-            )))
+            )));
         }
     }
 }
@@ -1538,14 +1538,14 @@ fn ser_dec_bin(file_name: &String) -> Result<Vec<u8>, RabeError> {
                 return Err(RabeError::new(&format!(
                     "inflate_bytes: {}",
                     e.to_string().as_str()
-                )))
+                )));
             }
         },
         Err(e) => {
             return Err(RabeError::new(&format!(
                 "read_raw: {}",
                 e.to_string().as_str()
-            )))
+            )));
         }
     }
 }

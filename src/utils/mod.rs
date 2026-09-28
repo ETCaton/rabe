@@ -5,7 +5,7 @@
 pub mod aes;
 /// File operations
 pub mod file;
-/// Hash to [`rabe-bn::Fr`] and Hash to [`rabe-bn::G1`] or [`rabe-bn::G2`]
+/// Hash to [`rabe_bn::Fr`] and Hash to [`rabe_bn::G1`] or [`rabe_bn::G2`]
 pub mod hash;
 /// Language (human and json) and Policy parsers (in msp and dnf)
 pub mod policy;

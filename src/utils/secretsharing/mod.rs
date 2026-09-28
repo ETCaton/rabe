@@ -1,6 +1,6 @@
 use crate::error::RabeError;
 use crate::utils::{
-    policy::pest::{parse, PolicyLanguage, PolicyType, PolicyValue},
+    policy::pest::{PolicyLanguage, PolicyType, PolicyValue, parse},
     tools::{contains, get_value, usize_to_fr},
 };
 use rabe_bn::*;
@@ -12,19 +12,19 @@ pub fn calc_coefficients(
     mut coeff_list: Vec<(String, Fr)>,
     policy_type: Option<PolicyType>,
 ) -> Option<Vec<(String, Fr)>> {
-    return match policy_value {
+    match policy_value {
         PolicyValue::Object(obj) => {
             match obj.0 {
                 PolicyType::And => {
-                    calc_coefficients(&obj.1.as_ref(), coeff, coeff_list, Some(PolicyType::And))
+                    calc_coefficients(obj.1.as_ref(), coeff, coeff_list, Some(PolicyType::And))
                 }
                 PolicyType::Or => {
-                    calc_coefficients(&obj.1.as_ref(), coeff, coeff_list, Some(PolicyType::Or))
+                    calc_coefficients(obj.1.as_ref(), coeff, coeff_list, Some(PolicyType::Or))
                 }
                 _ => {
                     // Single attribute policy use case
                     coeff_list.push((get_value(&obj.1), coeff.unwrap()));
-                    return Some(coeff_list);
+                    Some(coeff_list)
                 }
             }
         }
@@ -32,19 +32,19 @@ pub fn calc_coefficients(
             PolicyType::And => {
                 let mut this_coeff_vec = vec![Fr::one()];
                 for _i in 1..children.len() {
-                    let prev = this_coeff_vec[_i - 1].clone();
+                    let prev = this_coeff_vec[_i - 1];
                     this_coeff_vec.push(prev + Fr::one());
                 }
                 let this_coeff = recover_coefficients(this_coeff_vec);
                 for (i, child) in children.iter().enumerate() {
-                    match calc_coefficients(
-                        &child,
-                        Some(coeff.unwrap() * this_coeff[i]),
-                        coeff_list.clone(),
-                        None,
-                    ) {
-                        None => return None,
-                        Some(res) => coeff_list = res,
+                    {
+                        let res = calc_coefficients(
+                            child,
+                            Some(coeff.unwrap() * this_coeff[i]),
+                            coeff_list.clone(),
+                            None,
+                        )?;
+                        coeff_list = res
                     }
                 }
                 Some(coeff_list)
@@ -52,14 +52,14 @@ pub fn calc_coefficients(
             PolicyType::Or => {
                 let this_coeff = recover_coefficients(vec![Fr::one()]);
                 for child in children.iter() {
-                    match calc_coefficients(
-                        &child,
-                        Some(coeff.unwrap() * this_coeff[0]),
-                        coeff_list.clone(),
-                        None,
-                    ) {
-                        None => return None,
-                        Some(res) => coeff_list = res,
+                    {
+                        let res = calc_coefficients(
+                            child,
+                            Some(coeff.unwrap() * this_coeff[0]),
+                            coeff_list.clone(),
+                            None,
+                        )?;
+                        coeff_list = res
                     }
                 }
                 Some(coeff_list)
@@ -70,7 +70,7 @@ pub fn calc_coefficients(
             coeff_list.push((node_index(node), coeff.unwrap()));
             Some(coeff_list)
         }
-    };
+    }
 }
 
 // lagrange interpolation
@@ -85,13 +85,13 @@ pub fn recover_coefficients(list: Vec<Fr>) -> Vec<Fr> {
         }
         coeff.push(result);
     }
-    return coeff;
+    coeff
 }
 
 pub fn node_index(node: &(&str, usize)) -> String {
     [node.0.to_string(), String::from("_"), node.1.to_string()].concat()
 }
-pub fn remove_index(node: &String) -> String {
+pub fn remove_index(node: &str) -> String {
     let parts: Vec<_> = node.split('_').collect();
     parts[0].to_string()
 }
@@ -110,9 +110,9 @@ pub fn gen_shares_policy(
             Some(result)
         }
         PolicyValue::Object(obj) => match obj.0 {
-            PolicyType::And => gen_shares_policy(secret, &obj.1.as_ref(), Some(PolicyType::And)),
-            PolicyType::Or => gen_shares_policy(secret, &obj.1.as_ref(), Some(PolicyType::Or)),
-            _ => gen_shares_policy(secret, &obj.1.as_ref(), Some(PolicyType::Leaf)),
+            PolicyType::And => gen_shares_policy(secret, obj.1.as_ref(), Some(PolicyType::And)),
+            PolicyType::Or => gen_shares_policy(secret, obj.1.as_ref(), Some(PolicyType::Or)),
+            _ => gen_shares_policy(secret, obj.1.as_ref(), Some(PolicyType::Leaf)),
         },
         PolicyValue::Array(children) => {
             n = children.len();
@@ -156,7 +156,7 @@ pub fn gen_shares(secret: Fr, k: usize, n: usize) -> Vec<Fr> {
             shares.push(polynom);
         }
     }
-    return shares;
+    shares
 }
 
 pub fn calc_pruned(
@@ -167,9 +167,9 @@ pub fn calc_pruned(
     let mut empty: Vec<(String, String)> = Vec::new();
     match policy_value {
         PolicyValue::Object(obj) => match obj.0 {
-            PolicyType::And => calc_pruned(attr, &obj.1.as_ref(), Some(PolicyType::And)),
-            PolicyType::Or => calc_pruned(attr, &obj.1.as_ref(), Some(PolicyType::Or)),
-            _ => calc_pruned(attr, &obj.1.as_ref(), Some(PolicyType::Leaf)),
+            PolicyType::And => calc_pruned(attr, obj.1.as_ref(), Some(PolicyType::And)),
+            PolicyType::Or => calc_pruned(attr, obj.1.as_ref(), Some(PolicyType::Or)),
+            _ => calc_pruned(attr, obj.1.as_ref(), Some(PolicyType::Leaf)),
         },
         PolicyValue::Array(children) => {
             let len = children.len();
@@ -177,35 +177,33 @@ pub fn calc_pruned(
                 Some(PolicyType::And) => {
                     let mut policy_match: bool = true;
                     if len >= 2 {
-                        for _i in 0usize..len {
-                            let (_found, mut _list) =
-                                calc_pruned(attr, &children[_i], None).unwrap();
-                            policy_match = policy_match && _found;
+                        for child in children.iter().take(len) {
+                            let (found, mut list) = calc_pruned(attr, child, None).unwrap();
+                            policy_match &= found;
                             if policy_match {
-                                empty.append(&mut _list);
+                                empty.append(&mut list);
                             }
                         }
                     } else {
                         panic!("Error: Invalid policy (AND with just a single child).");
                     }
-                    if !policy_match.clone() {
+                    if !policy_match {
                         empty = Vec::new();
                     }
-                    return Ok((policy_match, empty));
+                    Ok((policy_match, empty))
                 }
                 Some(PolicyType::Or) => {
                     let mut _match: bool = false;
                     if len >= 2 {
-                        for _i in 0usize..len {
-                            let (_found, mut _list) =
-                                calc_pruned(attr, &children[_i], None).unwrap();
-                            _match = _match || _found;
+                        for child in children.iter().take(len) {
+                            let (found, mut list) = calc_pruned(attr, child, None).unwrap();
+                            _match |= found;
                             if _match {
-                                empty.append(&mut _list);
+                                empty.append(&mut list);
                                 break;
                             }
                         }
-                        return Ok((_match, empty));
+                        Ok((_match, empty))
                     } else {
                         panic!("Error: Invalid policy (OR with just a single child).")
                     }
@@ -232,15 +230,15 @@ pub fn recover_secret(_shares: Vec<Fr>, _policy: &String) -> Fr {
     for _i in 0usize.._shares.len() {
         _secret = _secret + (coeff_list[_i].1 * _shares[_i]);
     }
-    return _secret;
+    _secret
 }
 
 pub fn polynomial(_coeff: Vec<Fr>, _x: Fr) -> Fr {
-    let mut _share = Fr::zero();
-    for _i in 0usize.._coeff.len() {
-        _share = _share + (_coeff[_i] * _x.pow(usize_to_fr(_i)));
+    let mut share = Fr::zero();
+    for (i, coeff) in _coeff.iter().enumerate() {
+        share = share + *coeff * _x.pow(usize_to_fr(i))
     }
-    return _share;
+    share
 }
 
 #[cfg(test)]

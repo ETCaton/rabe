@@ -2,8 +2,8 @@ use aes_gcm::aead::Aead;
 use aes_gcm::{Aes256Gcm, Key, KeyInit, Nonce}; // Or `Aes128Gcm`
 
 use crate::error::RabeError;
-use rand::thread_rng;
 use rand::Rng;
+use rand::thread_rng;
 use std::convert::TryInto;
 
 /// Key Encapsulation Mechanism (AES-256 Encryption Function)
@@ -43,7 +43,7 @@ pub fn decrypt_symmetric<G: std::convert::Into<Vec<u8>>>(
         Err(_) => {
             return Err(RabeError::new(
                 "Error extracting IV from ciphertext: Expected an IV of 16 bytes",
-            ))
+            ));
         } // this REALLY shouldn't happen.
     };
     // 256bit key hashed/derived from _msg G

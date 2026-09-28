@@ -3,7 +3,7 @@ use rabe_bn::Fr;
 use sha3::{Digest, Sha3_256};
 use std::ops::Mul;
 
-/// Hash to a &String to [`rabe-bn::G1`] or [`rabe-bn::G2`] using Base g
+/// Hash to a &String to [`rabe_bn::G1`] or [`rabe_bn::G2`] using Base g
 pub fn sha3_hash<T: Mul<Fr, Output = T>>(g: T, data: &str) -> Result<T, RabeError> {
     let mut hasher = Sha3_256::new();
     hasher.update(data.as_bytes());
@@ -13,7 +13,7 @@ pub fn sha3_hash<T: Mul<Fr, Output = T>>(g: T, data: &str) -> Result<T, RabeErro
     }
 }
 
-/// Hash to a &String to [`rabe-bn::Fr`]
+/// Hash to a &String to [`rabe_bn::Fr`]
 pub fn sha3_hash_fr(data: &str) -> Result<Fr, RabeError> {
     let mut hasher = Sha3_256::new();
     hasher.update(data.as_bytes());

@@ -2,7 +2,7 @@ extern crate rabe;
 #[macro_use]
 extern crate criterion;
 
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use rabe::schemes;
 
 fn criterion_compare_schemes_setup(c: &mut Criterion) {
