@@ -50,7 +50,7 @@ use std::ops::Mul;
 pub struct Yct14Attribute {
     name: String,
     #[cfg_attr(feature = "borsh", borsh(skip))]
-    #[cfg_attr(not(feature = "borsh"), serde(skip_serializing_if = "Option::is_none"))]
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     node: Option<Yct14Type>,
 }
 
@@ -80,7 +80,7 @@ impl Yct14Type {
 impl Yct14Attribute {
     pub fn new(name: String, g: Gt) -> (Yct14Attribute, Yct14Attribute) {
         // random fr
-        let si: Fr = rand::thread_rng().gen();
+        let si: Fr = rand::thread_rng().r#gen();
         (
             // public attribute part
             Yct14Attribute {
@@ -230,8 +230,8 @@ pub fn setup(attributes: Vec<&str>) -> (Yct14AbePublicKey, Yct14AbeMasterKey) {
     let mut private: Vec<Yct14Attribute> = Vec::new();
     let mut public: Vec<Yct14Attribute> = Vec::new();
     // generate random values
-    let s: Fr = _rng.gen();
-    let g: Gt = _rng.gen();
+    let s: Fr = _rng.r#gen();
+    let g: Gt = _rng.r#gen();
     // generate randomized attributes
     for attribute in attributes {
         let attribute_pair = Yct14Attribute::new(attribute.to_string(), g);
@@ -304,7 +304,7 @@ pub fn encrypt(
         // attribute vector
         let mut attrs: Vec<Yct14Attribute> = Vec::new();
         // random secret
-        let k: Fr = rand::thread_rng().gen();
+        let k: Fr = rand::thread_rng().r#gen();
         // aes secret = public g ** random k
         let _cs: Gt = pk.g.pow(k);
         for attr in attributes.into_iter() {

@@ -149,7 +149,7 @@ pub fn gen_shares(secret: Fr, k: usize, n: usize) -> Vec<Fr> {
         let mut a: Vec<Fr> = Vec::new();
         a.push(secret);
         for _i in 1..k {
-            a.push(rng.gen())
+            a.push(rng.r#gen())
         }
         for i in 0..(n + 1) {
             let polynom = polynomial(a.clone(), usize_to_fr(i));
@@ -252,7 +252,7 @@ mod tests {
     fn test_secret_sharing_or() {
         // OR
         let mut rng = rand::thread_rng();
-        let secret: Fr = rng.gen();
+        let secret: Fr = rng.r#gen();
         //println!("_random: {:?}", into_dec(_secret).unwrap());
         let _shares = gen_shares(secret, 1, 2);
         let _k = _shares[0];
@@ -270,7 +270,7 @@ mod tests {
     fn test_gen_shares_json() {
         // OR
         let _rng = &mut rand::thread_rng();
-        let _secret: Fr = _rng.gen();
+        let _secret: Fr = _rng.r#gen();
         let _policy = String::from(
             r#"{"name": "and", "children": [{"name": "A"}, {"name": "B"}, {"name": "C"}, {"name": "D"}]}"#,
         );
@@ -289,7 +289,7 @@ mod tests {
     fn test_secret_sharing_and() {
         // AND
         let mut _rng = rand::thread_rng();
-        let _secret: Fr = _rng.gen();
+        let _secret: Fr = _rng.r#gen();
         //println!("_random: {:?}", into_dec(_secret).unwrap());
         let _shares = gen_shares(_secret, 2, 2);
         let _k = _shares[0];

@@ -99,8 +99,8 @@ pub fn setup() -> Aw11GlobalKey {
     let mut rng = rand::thread_rng();
     // generator of group G1: g1 and generator of group G2: g2
     Aw11GlobalKey {
-        g1: rng.gen(),
-        g2: rng.gen(),
+        g1: rng.r#gen(),
+        g2: rng.r#gen(),
     }
 }
 
@@ -130,8 +130,8 @@ pub fn authgen(gk: &Aw11GlobalKey, attributes: &[&str]) -> Option<(Aw11PublicKey
     for attr in attributes {
         let name = attr.to_string().to_uppercase();
         // calculate randomness
-        let alpha_i: Fr = rng.gen();
-        let y_i: Fr = rng.gen();
+        let alpha_i: Fr = rng.r#gen();
+        let y_i: Fr = rng.r#gen();
         sk.push((name.clone(), alpha_i, y_i));
         pk.push((name, pairing(gk.g1, gk.g2).pow(alpha_i), gk.g2 * y_i));
     }
@@ -240,17 +240,17 @@ pub fn encrypt(
             let _num_cols = msp.m[0].len();
             let _num_rows = msp.m.len();
             // pick randomness
-            let _s: Fr = _rng.gen();
+            let _s: Fr = _rng.r#gen();
             // and calculate shares "s" and "zero"
             let _s_shares = gen_shares_policy(_s, &pol, None).unwrap();
             let _w_shares = gen_shares_policy(Fr::zero(), &pol, None).unwrap();
             // calculate c0 with a randomly selected "msg"
-            let _msg: Gt = _rng.gen();
+            let _msg: Gt = _rng.r#gen();
             let c_0 = _msg * pairing(gk.g1, gk.g2).pow(_s);
             // now calculate the C1,x C2,x and C3,x parts
             let mut c: Vec<(String, Gt, G2, G2)> = Vec::new();
             for (_i, (_attr_name, _attr_share)) in _s_shares.into_iter().enumerate() {
-                let _r_x: Fr = _rng.gen();
+                let _r_x: Fr = _rng.r#gen();
                 let _pk_attr = find_pk_attr(pks, &remove_index(&_attr_name.to_uppercase()));
                 match _pk_attr {
                     None => {}

@@ -145,11 +145,11 @@ pub struct BdabeCiphertext {
 pub fn setup() -> (BdabePublicKey, BdabeMasterKey) {
     // random number generator
     let mut rng = rand::thread_rng();
-    let g1: G1 = rng.gen();
-    let g2: G2 = rng.gen();
-    let p1: G1 = rng.gen();
-    let p2: G2 = rng.gen();
-    let y: Fr = rng.gen();
+    let g1: G1 = rng.r#gen();
+    let g2: G2 = rng.r#gen();
+    let p1: G1 = rng.r#gen();
+    let p2: G2 = rng.r#gen();
+    let y: Fr = rng.r#gen();
     // return pk and mk
     (
         BdabePublicKey {
@@ -175,11 +175,11 @@ pub fn setup() -> (BdabePublicKey, BdabeMasterKey) {
 pub fn authgen(pk: &BdabePublicKey, msk: &BdabeMasterKey, name: &str) -> BdabeSecretAuthorityKey {
     // random number generator
     let mut rng = rand::thread_rng();
-    let _alpha: Fr = rng.gen();
+    let _alpha: Fr = rng.r#gen();
     let _beta = msk.y - _alpha;
     let a1 = pk.g1 * _alpha;
     let a2 = pk.g2 * _beta;
-    let a3: Fr = rng.gen();
+    let a3: Fr = rng.r#gen();
     // return secret authority key
     BdabeSecretAuthorityKey {
         a1,
@@ -203,7 +203,7 @@ pub fn authgen(pk: &BdabePublicKey, msk: &BdabeMasterKey, name: &str) -> BdabeSe
 pub fn keygen(pk: &BdabePublicKey, sk_a: &BdabeSecretAuthorityKey, name: &str) -> BdabeUserKey {
     // random number generator
     let mut rng = rand::thread_rng();
-    let r_u: Fr = rng.gen();
+    let r_u: Fr = rng.r#gen();
     // return pk_u and sk_u
     BdabeUserKey {
         sk: BdabeSecretUserKey {
@@ -327,11 +327,11 @@ pub fn encrypt(
                 let dnf: dnf::DnfPolicy =
                     dnf::DnfPolicy::from_string(policy, attr_pks, language).unwrap();
                 // random Gt msg
-                let _msg = pairing(rng.gen(), rng.gen());
+                let _msg = pairing(rng.r#gen(), rng.r#gen());
                 let mut j: Vec<BdabeCiphertextTuple> = Vec::new();
                 // now add randomness using _r_j
                 for _term in dnf.terms {
-                    let _r_j: Fr = rng.gen();
+                    let _r_j: Fr = rng.r#gen();
                     j.push(BdabeCiphertextTuple {
                         attr: _term.0,
                         e1: _term.1.pow(_r_j) * _msg,

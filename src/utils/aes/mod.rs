@@ -17,7 +17,7 @@ pub fn encrypt_symmetric<G: std::convert::Into<Vec<u8>>>(
     let key = Key::<Aes256Gcm>::from_slice(kdf.as_slice());
     let cipher = Aes256Gcm::new(key);
     // 96bit random noise
-    let nonce_vec: Vec<u8> = (0..12).into_iter().map(|_| rng.gen()).collect(); // 12*u8 = 96 Bit
+    let nonce_vec: Vec<u8> = (0..12).into_iter().map(|_| rng.r#gen()).collect(); // 12*u8 = 96 Bit
     let nonce = Nonce::from_slice(nonce_vec.as_ref());
     match cipher.encrypt(nonce, data.as_ref()) {
         Ok(mut ct) => {

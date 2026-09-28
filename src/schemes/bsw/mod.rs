@@ -93,11 +93,11 @@ pub fn setup() -> (CpAbePublicKey, CpAbeMasterKey) {
     // random number generator
     let mut rng = rand::thread_rng();
     // generator of group G1: g1 and generator of group G2: g2
-    let g1: G1 = rng.gen();
-    let g2: G2 = rng.gen();
+    let g1: G1 = rng.r#gen();
+    let g2: G2 = rng.r#gen();
     // random
-    let beta: Fr = rng.gen();
-    let alpha: Fr = rng.gen();
+    let beta: Fr = rng.r#gen();
+    let alpha: Fr = rng.r#gen();
     // vectors
     // calulate h and f
     let h = g1 * beta;
@@ -142,12 +142,12 @@ pub fn keygen(
     let mut rng = rand::thread_rng();
     // generate random r1 and r2 and sum of both
     // compute Br as well because it will be used later too
-    let r: Fr = rng.gen();
+    let r: Fr = rng.r#gen();
     let g2_r = pk.g2 * r;
     let d = (msk.g2_alpha + g2_r) * msk.beta.inverse().unwrap();
     let mut d_j: Vec<CpAbeAttribute> = Vec::new();
     for j in attributes {
-        let r_j: Fr = rng.gen();
+        let r_j: Fr = rng.r#gen();
         d_j.push(CpAbeAttribute {
             string: j.to_string(), // attribute name
             g1: pk.g1 * r_j,       // D_j Prime
@@ -188,12 +188,12 @@ pub fn delegate(
         // random number generator
         let mut rng = rand::thread_rng();
         // generate random r
-        let r: Fr = rng.gen();
+        let r: Fr = rng.r#gen();
         // calculate derived _k_0
         let mut d_j: Vec<CpAbeAttribute> = Vec::new();
         // calculate derived attributes
         for attr in subset {
-            let r_j: Fr = rng.gen();
+            let r_j: Fr = rng.r#gen();
             let d_j_val = sk
                 .d_j
                 .iter()
@@ -235,8 +235,8 @@ pub fn encrypt(
     }
     let mut rng = rand::thread_rng();
     // the shared root secret
-    let secret: Fr = rng.gen();
-    let msg: Gt = rng.gen();
+    let secret: Fr = rng.r#gen();
+    let msg: Gt = rng.r#gen();
     match parse(policy, language) {
         Ok(policy_value) => {
             let shares: Vec<(String, Fr)> = gen_shares_policy(secret, &policy_value, None).unwrap();

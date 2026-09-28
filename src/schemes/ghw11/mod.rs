@@ -86,14 +86,14 @@ pub struct Ghw11TransformCiphertext {
 pub fn setup() -> (Ghw11PublicKey, Ghw11MasterKey) {
     // random number generator
     let mut rng = rand::thread_rng();
-    let g1: G1 = rng.gen();
-    let g2: G2 = rng.gen();
+    let g1: G1 = rng.r#gen();
+    let g2: G2 = rng.r#gen();
 
-    let a: Fr = rng.gen();
+    let a: Fr = rng.r#gen();
     let g1_a = g1 * a;
     let g2_a = g2 * a;
 
-    let alpha: Fr = rng.gen();
+    let alpha: Fr = rng.r#gen();
     let e_gg_alpha = pairing(g1, g2).pow(alpha);
     let g2_alpha = g2 * alpha;
     let pk = Ghw11PublicKey {
@@ -128,7 +128,7 @@ pub fn keygen(
     // random number generator
     let mut rng = rand::thread_rng();
     // generate random r
-    let r: Fr = rng.gen();
+    let r: Fr = rng.r#gen();
 
     //L
     let g2_r = pk.g2 * r;
@@ -157,7 +157,7 @@ pub fn tkgen(sk: Ghw11SecretKey) -> Option<(Ghw11TransformKey, Ghw11RetrieveKey)
     let mut rng = rand::thread_rng();
 
     // generate random z
-    let z: Fr = rng.gen();
+    let z: Fr = rng.r#gen();
     let z_inverse = z.inverse().unwrap();
 
     let k_z = sk.k * z_inverse;
@@ -201,9 +201,9 @@ pub fn encrypt(
     }
     let mut rng = rand::thread_rng();
     // the shared root secret
-    let secret: Fr = rng.gen();
+    let secret: Fr = rng.r#gen();
 
-    let msg: Gt = rng.gen();
+    let msg: Gt = rng.r#gen();
 
     match parse(policy, language) {
         Ok(policy_value) => {
@@ -214,7 +214,7 @@ pub fn encrypt(
 
             let mut ci_di: Vec<(String, G1, G1)> = Vec::new();
             for (node, i_val) in shares.clone() {
-                let t_i: Fr = rng.gen();
+                let t_i: Fr = rng.r#gen();
                 let j = remove_index(&node);
                 ci_di.push((
                     node.clone(),

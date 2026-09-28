@@ -87,15 +87,15 @@ pub fn setup() -> (KpAbePublicKey, KpAbeMasterKey) {
     // random number generator
     let mut rng = rand::thread_rng();
     // generate random alpha1, alpha2 and b
-    let alpha1: Fr = rng.gen();
-    let alpha2: Fr = rng.gen();
-    let b: Fr = rng.gen();
+    let alpha1: Fr = rng.r#gen();
+    let alpha2: Fr = rng.r#gen();
+    let b: Fr = rng.r#gen();
 
     let alpha = alpha1 * alpha2;
-    let g1: G1 = rng.gen();
-    let g2: G2 = rng.gen();
-    let h_g1: G1 = rng.gen();
-    let h_g2: G2 = rng.gen();
+    let g1: G1 = rng.r#gen();
+    let g2: G2 = rng.r#gen();
+    let h_g1: G1 = rng.r#gen();
+    let h_g2: G2 = rng.r#gen();
     let g1_b = g1 * b;
     let g1_b2 = g1_b * b;
     let h_b = h_g1 * b;
@@ -145,7 +145,7 @@ pub fn keygen(
                 let mut dj: Vec<(String, G1, G2, G1, G1, G1)> = Vec::new();
                 for (share_str, share_value) in shares.into_iter() {
                     let striped = remove_index(&share_str);
-                    let random: Fr = rng.gen();
+                    let random: Fr = rng.r#gen();
                     if is_negative(&striped) {
                         let share_hash = sha3_hash_fr(&striped).expect("could not hash _share_str");
                         dj.push((
@@ -201,12 +201,12 @@ pub fn encrypt(
         // attribute vector
         let mut ej: Vec<(String, G1, G1, G1)> = Vec::new();
         // random secret
-        let secret: Fr = rng.gen();
+        let secret: Fr = rng.r#gen();
         // sx vector
         let mut sx: Vec<Fr> = Vec::new();
         sx.push(secret);
         for (_i, _attr) in attributes.iter().enumerate() {
-            sx.push(rng.gen());
+            sx.push(rng.r#gen());
             sx[0] = sx[0] - sx[_i];
         }
         for (_i, _attr) in attributes.into_iter().enumerate() {
@@ -221,7 +221,7 @@ pub fn encrypt(
             ));
         }
         // random message
-        let msg: Gt = rng.gen();
+        let msg: Gt = rng.r#gen();
         let e1: Gt = pk.e_gg_alpha.pow(secret) * msg;
         let e2: G2 = pk.g2 * secret;
         //Encrypt plaintext using derived key from secret

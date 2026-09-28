@@ -133,21 +133,21 @@ pub fn setup() -> (Ac17PublicKey, Ac17MasterKey) {
     // random number generator
     let mut rng = rand::thread_rng();
     // generator of group G1: g and generator of group G2: h
-    let g: G1 = rng.gen();
-    let h: G2 = rng.gen();
+    let g: G1 = rng.r#gen();
+    let h: G2 = rng.r#gen();
     //pairing
     let e_gh = pairing(g, h);
     // A and B vectors
     let mut a: Vec<Fr> = Vec::new();
     let mut b: Vec<Fr> = Vec::new();
     for _i in 0usize..ASSUMPTION_SIZE {
-        a.push(rng.gen());
-        b.push(rng.gen());
+        a.push(rng.r#gen());
+        b.push(rng.r#gen());
     }
     // k vetor
     let mut _k: Vec<Fr> = Vec::new();
     for _i in 0usize..(ASSUMPTION_SIZE + 1) {
-        _k.push(rng.gen());
+        _k.push(rng.r#gen());
     }
     // h_A vetor
     let mut h_a: Vec<G2> = Vec::new();
@@ -191,7 +191,7 @@ pub fn cp_keygen(msk: &Ac17MasterKey, attributes: &[&str]) -> Result<Ac17CpSecre
     let mut r: Vec<Fr> = Vec::new();
     let mut sum = Fr::zero();
     for _i in 0usize..ASSUMPTION_SIZE {
-        let random: Fr = rng.gen();
+        let random: Fr = rng.r#gen();
         r.push(random);
         sum = sum + random;
     }
@@ -211,7 +211,7 @@ pub fn cp_keygen(msk: &Ac17MasterKey, attributes: &[&str]) -> Result<Ac17CpSecre
     let a = msk.a.clone();
     for attr in attributes {
         let mut key: Vec<G1> = Vec::new();
-        let sigma_attr: Fr = rng.gen();
+        let sigma_attr: Fr = rng.r#gen();
         for _t in 0usize..ASSUMPTION_SIZE {
             let mut prod = G1::zero();
             let _a_t = a[_t].inverse().unwrap();
@@ -232,7 +232,7 @@ pub fn cp_keygen(msk: &Ac17MasterKey, attributes: &[&str]) -> Result<Ac17CpSecre
     // compute [k + VBr]_1
     let mut _k_p: Vec<G1> = Vec::new();
     let _g_k = msk.g_k.clone();
-    let _sigma: Fr = rng.gen();
+    let _sigma: Fr = rng.r#gen();
     for _t in 0usize..ASSUMPTION_SIZE {
         let mut _prod = _g_k[_t];
         let _a_t = a[_t].inverse().unwrap();
@@ -279,7 +279,7 @@ pub fn cp_encrypt(
             let mut s: Vec<Fr> = Vec::new();
             let mut sum = Fr::zero();
             for _i in 0usize..ASSUMPTION_SIZE {
-                let random: Fr = rng.gen();
+                let random: Fr = rng.r#gen();
                 s.push(random);
                 sum = sum + random;
             }
@@ -349,7 +349,7 @@ pub fn cp_encrypt(
                 c_p = c_p * (pk.e_gh_ka[_i].pow(s[_i]));
             }
             // random msg
-            let msg: Gt = rng.gen();
+            let msg: Gt = rng.r#gen();
             //Encrypt plaintext using derived key from secret
             match encrypt_symmetric(msg, &plaintext.to_vec()) {
                 Ok(ct) => Ok(Ac17CpCiphertext {
@@ -448,7 +448,7 @@ pub fn kp_keygen(
             let mut _r: Vec<Fr> = Vec::new();
             let mut _sum = Fr::zero();
             for _i in 0usize..ASSUMPTION_SIZE {
-                let _rand: Fr = _rng.gen();
+                let _rand: Fr = _rng.r#gen();
                 _r.push(_rand);
                 _sum = _sum + _rand;
             }
@@ -465,7 +465,7 @@ pub fn kp_keygen(
             }
             let mut _sigma_prime: Vec<Fr> = Vec::new();
             for _i in 0usize..(_num_cols - 1) {
-                _sigma_prime.push(_rng.gen())
+                _sigma_prime.push(_rng.r#gen())
             }
             // compute [W_1 Br]_1, ...
             let mut _k: Vec<(String, Vec<G1>)> = Vec::new();
@@ -473,7 +473,7 @@ pub fn kp_keygen(
             let _g = msk.g.clone();
             for _i in 0usize.._num_rows {
                 let mut _key: Vec<G1> = Vec::new();
-                let _sigma_attr: Fr = _rng.gen();
+                let _sigma_attr: Fr = _rng.r#gen();
                 // calculate _sk_i1 and _sk_i2 terms
                 for _t in 0usize..ASSUMPTION_SIZE {
                     let mut _prod = G1::zero();
@@ -567,7 +567,7 @@ pub fn kp_encrypt(
     let mut s: Vec<Fr> = Vec::new();
     let mut sum = Fr::zero();
     for _i in 0usize..ASSUMPTION_SIZE {
-        let random: Fr = rng.gen();
+        let random: Fr = rng.r#gen();
         s.push(random);
         sum = sum + random;
     }
@@ -603,7 +603,7 @@ pub fn kp_encrypt(
         c_p = c_p * (pk.e_gh_ka[_i].pow(s[_i]));
     }
     // random msg
-    let _msg: Gt = rng.gen();
+    let _msg: Gt = rng.r#gen();
     //Encrypt plaintext using derived key from secret
     match encrypt_symmetric(_msg, &data.to_vec()) {
         Ok(ct) => Ok(Ac17KpCiphertext {

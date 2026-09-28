@@ -152,12 +152,12 @@ pub struct Mke08CTConjunction {
 pub fn setup() -> (Mke08PublicKey, Mke08MasterKey) {
     // random number generator
     let mut rng = rand::thread_rng();
-    let g1: G1 = rng.gen();
-    let g2: G2 = rng.gen();
-    let p1: G1 = rng.gen();
-    let p2: G2 = rng.gen();
-    let y1: Fr = rng.gen();
-    let y2: Fr = rng.gen();
+    let g1: G1 = rng.r#gen();
+    let g2: G2 = rng.r#gen();
+    let p1: G1 = rng.r#gen();
+    let p2: G2 = rng.r#gen();
+    let y1: Fr = rng.r#gen();
+    let y2: Fr = rng.r#gen();
     let e_gg_y1 = pairing(g1, g2).pow(y1);
     let e_gg_y2 = pairing(g1, g2).pow(y2);
     let msk_g1 = g1 * y1;
@@ -190,7 +190,7 @@ pub fn setup() -> (Mke08PublicKey, Mke08MasterKey) {
 pub fn keygen(pk: &Mke08PublicKey, msk: &Mke08MasterKey, name: &str) -> Mke08UserKey {
     // random number generator
     let mut rng = rand::thread_rng();
-    let mk_u: Fr = rng.gen();
+    let mk_u: Fr = rng.r#gen();
     // return pk_u and sk_u
     return Mke08UserKey {
         sk: Mke08SecretUserKey {
@@ -217,7 +217,7 @@ pub fn authgen(name: &str) -> Mke08SecretAuthorityKey {
     // return secret authority key
     return Mke08SecretAuthorityKey {
         name: name.to_string(),
-        r: rand::thread_rng().gen(),
+        r: rand::thread_rng().r#gen(),
     };
 }
 
@@ -329,14 +329,14 @@ pub fn encrypt(
                 // an DNF policy from the given String
                 let policy_dnf = DnfPolicy::from_string(&policy, attr_pks, language).unwrap();
                 // random Gt msgs
-                let msg1 = pairing(rng.gen(), rng.gen());
-                let msg2 = msg1.pow(rng.gen());
+                let msg1 = pairing(rng.r#gen(), rng.r#gen());
+                let msg2 = msg1.pow(rng.r#gen());
                 let msg = msg1 * msg2;
                 // CT result vectors
                 let mut e: Vec<Mke08CTConjunction> = Vec::new();
                 // now add randomness using _r_j
                 for term in policy_dnf.terms.into_iter() {
-                    let r_j: Fr = rng.gen();
+                    let r_j: Fr = rng.r#gen();
                     e.push(Mke08CTConjunction {
                         str: term.0,
                         j1: term.1.pow(r_j) * msg1,
