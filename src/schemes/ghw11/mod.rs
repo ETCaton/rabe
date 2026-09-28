@@ -1,20 +1,12 @@
-use std::{
-    string::String,
-    ops::Neg
-};
-use rabe_bn::{Group, Gt, G1, G2, Fr, pairing};
+use rabe_bn::{pairing, Fr, Group, Gt, G1, G2};
+use std::{ops::Neg, string::String};
 
-use rand::Rng;
-use utils::{
-    tools::*,
-    secretsharing::*,
-    aes::*,
-    hash::sha3_hash
-};
-use utils::policy::pest::{PolicyLanguage, parse, PolicyType};
 use crate::error::RabeError;
+use crate::utils::policy::pest::{parse, PolicyLanguage, PolicyType};
+use crate::utils::{aes::*, hash::sha3_hash, secretsharing::*, tools::*};
+use rand::Rng;
 #[cfg(feature = "serde")]
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 /// An Ghw11 Public Key (PK)
 #[derive(Clone, PartialEq, Debug)]
@@ -76,7 +68,7 @@ pub struct Ghw11RetrieveKey {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Ghw11Ciphertext {
     pub policy: (String, PolicyLanguage),
-    pub c : Gt,
+    pub c: Gt,
     pub c1: G1,
     pub ci_di: Vec<(String, G1, G1)>,
     pub data: Vec<u8>,
@@ -86,30 +78,33 @@ pub struct Ghw11Ciphertext {
 #[derive(Clone, PartialEq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Ghw11TransformCiphertext {
-    pub c : Gt,
-    pub t : Gt,
+    pub c: Gt,
+    pub t: Gt,
 }
 
 /// The setup algorithm of Ghw11. Generates a Ghw11PublicKey and a Ghw11MasterKey.
 pub fn setup() -> (Ghw11PublicKey, Ghw11MasterKey) {
     // random number generator
     let mut rng = rand::thread_rng();
-    let g1:G1 = rng.gen();
-    let g2:G2 = rng.gen();
+    let g1: G1 = rng.gen();
+    let g2: G2 = rng.gen();
 
-    let a:Fr = rng.gen();
+    let a: Fr = rng.gen();
     let g1_a = g1 * a;
     let g2_a = g2 * a;
 
-    let alpha:Fr = rng.gen();
+    let alpha: Fr = rng.gen();
     let e_gg_alpha = pairing(g1, g2).pow(alpha);
     let g2_alpha = g2 * alpha;
-    let pk = Ghw11PublicKey { g1, g1_a, g2, g2_a, e_gg_alpha};
+    let pk = Ghw11PublicKey {
+        g1,
+        g1_a,
+        g2,
+        g2_a,
+        e_gg_alpha,
+    };
     // return pk and mk
-    (
-        pk.clone(),
-        Ghw11MasterKey { g2_alpha, pk },
-    )
+    (pk.clone(), Ghw11MasterKey { g2_alpha, pk })
 }
 
 /// The key generation algorithm of Ghw11 CP-ABE. Generates a Ghw11SecrectKey using a Ghw11PublicKey, a Ghw11MasterKey and a set of attributes given as Vec<String>.
@@ -133,7 +128,7 @@ pub fn keygen(
     // random number generator
     let mut rng = rand::thread_rng();
     // generate random r
-    let r:Fr = rng.gen();
+    let r: Fr = rng.gen();
 
     //L
     let g2_r = pk.g2 * r;
@@ -145,36 +140,45 @@ pub fn keygen(
     for j in attributes {
         k_x.push(Ghw11Attribute {
             string: j.to_string(), // attribute name
-            k_x:  (sha3_hash(pk.g2, j.as_str()).expect("could not hash _j") * r), // K_x
+            k_x: (sha3_hash(pk.g2, j.as_str()).expect("could not hash _j") * r), // K_x
         });
     }
-    return Some(Ghw11SecretKey { k, l: g2_r, attr_key: k_x });
+    return Some(Ghw11SecretKey {
+        k,
+        l: g2_r,
+        attr_key: k_x,
+    });
 }
 
-/// The tansform key generation algorithm of Ghw11 CP-ABE. 
+/// The tansform key generation algorithm of Ghw11 CP-ABE.
 /// Tansfrom Secretkey with a random RetrieveKey z to TransformKey, return (Ghw11TransformKey, Ghw11RetrieveKey).
-pub fn tkgen(
-    sk: Ghw11SecretKey,
-) -> Option<(Ghw11TransformKey, Ghw11RetrieveKey)> {
-        // random number generator
-        let mut rng = rand::thread_rng();
+pub fn tkgen(sk: Ghw11SecretKey) -> Option<(Ghw11TransformKey, Ghw11RetrieveKey)> {
+    // random number generator
+    let mut rng = rand::thread_rng();
 
-        // generate random z
-        let z:Fr = rng.gen();
-        let z_inverse = z.inverse().unwrap();
+    // generate random z
+    let z: Fr = rng.gen();
+    let z_inverse = z.inverse().unwrap();
 
-        let k_z = sk.k * z_inverse;
+    let k_z = sk.k * z_inverse;
 
-        let l_z = sk.l * z_inverse;
+    let l_z = sk.l * z_inverse;
 
-        let mut attr_key_z: Vec<Ghw11Attribute> = Vec::new();
-        for k_i in sk.attr_key.iter() {
-            attr_key_z.push(Ghw11Attribute {
-                string: k_i.string.clone(), // attribute name
-                k_x:  k_i.k_x * z_inverse, 
-            });
-        }
-        return Some((Ghw11TransformKey { k_z, l_z, attr_key_z }, Ghw11RetrieveKey{z}));
+    let mut attr_key_z: Vec<Ghw11Attribute> = Vec::new();
+    for k_i in sk.attr_key.iter() {
+        attr_key_z.push(Ghw11Attribute {
+            string: k_i.string.clone(), // attribute name
+            k_x: k_i.k_x * z_inverse,
+        });
+    }
+    return Some((
+        Ghw11TransformKey {
+            k_z,
+            l_z,
+            attr_key_z,
+        },
+        Ghw11RetrieveKey { z },
+    ));
 }
 
 /// The encrypt algorithm of Ghw11 CP-ABE. Generates a new Ghw11Ciphertext using an Ghw11PublicKey, an access policy given as String and some plaintext data given as [u8].
@@ -197,7 +201,7 @@ pub fn encrypt(
     }
     let mut rng = rand::thread_rng();
     // the shared root secret
-    let secret:Fr = rng.gen();
+    let secret: Fr = rng.gen();
 
     let msg: Gt = rng.gen();
 
@@ -210,16 +214,26 @@ pub fn encrypt(
 
             let mut ci_di: Vec<(String, G1, G1)> = Vec::new();
             for (node, i_val) in shares.clone() {
-                let t_i:Fr = rng.gen();
+                let t_i: Fr = rng.gen();
                 let j = remove_index(&node);
-                ci_di.push((node.clone(), pk.g1_a * i_val + sha3_hash(pk.g1, &j).unwrap() * (t_i.neg()), pk.g1 * t_i));
+                ci_di.push((
+                    node.clone(),
+                    pk.g1_a * i_val + sha3_hash(pk.g1, &j).unwrap() * (t_i.neg()),
+                    pk.g1 * t_i,
+                ));
             }
             match encrypt_symmetric(msg, &plaintext.to_vec()) {
-                Ok(data) => Ok(Ghw11Ciphertext { policy: (policy.to_string(), language), c, c1, ci_di, data }),
-                Err(e) => Err(e)
+                Ok(data) => Ok(Ghw11Ciphertext {
+                    policy: (policy.to_string(), language),
+                    c,
+                    c1,
+                    ci_di,
+                    data,
+                }),
+                Err(e) => Err(e),
             }
         }
-        Err(e) => Err(e)
+        Err(e) => Err(e),
     }
 }
 
@@ -231,15 +245,14 @@ pub fn transform(
     let str_attr: Vec<String> = tk
         .attr_key_z
         .iter()
-        .map(|_values| {
-            _values.clone().string
-            
-        })
+        .map(|_values| _values.clone().string)
         .collect::<Vec<_>>();
     return match parse(ct.policy.0.as_ref(), ct.policy.1) {
         Ok(pol) => {
             return if traverse_policy(&str_attr, &pol, PolicyType::Leaf) == false {
-                Err(RabeError::new("Error: attributes in tk do not match policy in ct."))
+                Err(RabeError::new(
+                    "Error: attributes in tk do not match policy in ct.",
+                ))
             } else {
                 let _pruned = calc_pruned(&str_attr, &pol, None);
                 match _pruned {
@@ -247,7 +260,8 @@ pub fn transform(
                     Ok(_p) => {
                         let (_match, _list) = _p;
                         let mut coeff_list: Vec<(String, Fr)> = Vec::new();
-                        coeff_list = calc_coefficients(&pol, Some(Fr::one()), coeff_list,None).unwrap();
+                        coeff_list =
+                            calc_coefficients(&pol, Some(Fr::one()), coeff_list, None).unwrap();
                         if _match {
                             let mut t = Gt::one();
                             let mut ci_wi = G1::zero();
@@ -275,22 +289,22 @@ pub fn transform(
                                     .unwrap();
                                 //add ci^wi
                                 ci_wi = ci_wi + _ct_attr.1 * _coeff;
-                                //mul 
+                                //mul
                                 t = t * pairing(_ct_attr.2 * _coeff, _tk_attr.k_x);
                             }
                             t = t * pairing(ci_wi, tk.l_z);
                             t = pairing(ct.c1, tk.k_z) * t.inverse();
 
-                            Ok(Ghw11TransformCiphertext{c: ct.c, t})
+                            Ok(Ghw11TransformCiphertext { c: ct.c, t })
                         } else {
                             Err(RabeError::new("Error in Ghw11/decrypt: attributes in sk do not match policy in ct."))
                         }
                     }
                 }
-            }
-        },
-        Err(e) => Err(e)
-    }    
+            };
+        }
+        Err(e) => Err(e),
+    };
 }
 
 /// The decrypt_out algorithm of GHW11 CP-ABE. Reconstructs the original plaintext data as Vec<u8>, given a Ghw11TransformCiphertext with a matching Ghw11RetrieveKey.
@@ -328,8 +342,8 @@ mod tests {
         let not_match_sk = keygen(&pk, &msk, &att_not_matching).unwrap();
 
         // our plaintext
-        let plaintext = String::from("dance like no one's watching, encrypt like everyone is!")
-            .into_bytes();
+        let plaintext =
+            String::from("dance like no one's watching, encrypt like everyone is!").into_bytes();
 
         // our policy
         let policy = String::from(r#"{"name": "or", "children": [{"name": "A"}, {"name": "B"}]}"#);
@@ -354,22 +368,22 @@ mod tests {
     }
 
     #[test]
-    fn and2() -> (){
+    fn and2() -> () {
         // global setup
         let (pk, msk) = setup();
 
         // setup a user "bob" and give him some attribute-keys
 
-        let att_bob = vec![String::from("attr0"),String::from("attr1")];
+        let att_bob = vec![String::from("attr0"), String::from("attr1")];
 
         let bob_sk = keygen(&pk, &msk, &att_bob).unwrap();
 
         // our plaintext
-        let plaintext =
-            String::from("ghw11 OABE").into_bytes();
+        let plaintext = String::from("ghw11 OABE").into_bytes();
 
         // our policy
-        let policy = String::from(r#"{"name": "and", "children": [{"name": "attr0"}, {"name": "attr1"}]}"#);
+        let policy =
+            String::from(r#"{"name": "and", "children": [{"name": "attr0"}, {"name": "attr1"}]}"#);
 
         // cp-abe ciphertext
         let ct_cp = encrypt(&pk, &policy, PolicyLanguage::JsonPolicy, &plaintext).unwrap();
@@ -389,7 +403,6 @@ mod tests {
 
         println!("decrypt plaintext:{:?}", decrypt_plaintext);
     }
-
 
     #[test]
     fn and10() {
@@ -412,8 +425,8 @@ mod tests {
         let not_match_sk = keygen(&pk, &msk, &att_not_matching).unwrap();
 
         // our plaintext
-        let plaintext = String::from("dance like no one's watching, encrypt like everyone is!")
-            .into_bytes();
+        let plaintext =
+            String::from("dance like no one's watching, encrypt like everyone is!").into_bytes();
 
         let mut _policy = String::from("{\"name\": \"and\", \"children\": [");
         for n in 1..11 {
@@ -446,5 +459,4 @@ mod tests {
         assert_eq!(_match.is_ok(), true);
         assert_eq!(_match.unwrap(), plaintext);
     }
-
 }

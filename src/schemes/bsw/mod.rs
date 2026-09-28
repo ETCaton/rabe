@@ -20,21 +20,21 @@
 //! let sk: CpAbeSecretKey = keygen(&pk, &msk, &vec!["A", "B"]).unwrap();
 //! assert_eq!(decrypt(&sk, &ct_cp).unwrap(), plaintext);
 //! ```
-use rabe_bn::{Fr, G1, G2, Gt, pairing};
-use rand::Rng;
-use utils::{
-    secretsharing::{gen_shares_policy, calc_pruned, calc_coefficients},
-    tools::*,
-    aes::*,
-    hash::*
-};
-use utils::policy::pest::{PolicyLanguage, parse, PolicyType};
 use crate::error::RabeError;
-use utils::secretsharing::remove_index;
+use crate::utils::policy::pest::{parse, PolicyLanguage, PolicyType};
+use crate::utils::secretsharing::remove_index;
+use crate::utils::{
+    aes::*,
+    hash::*,
+    secretsharing::{calc_coefficients, calc_pruned, gen_shares_policy},
+    tools::*,
+};
 #[cfg(feature = "borsh")]
-use borsh::{BorshSerialize, BorshDeserialize};
+use borsh::{BorshDeserialize, BorshSerialize};
+use rabe_bn::{pairing, Fr, Gt, G1, G2};
+use rand::Rng;
 #[cfg(feature = "serde")]
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 /// A BSW Public Key (PK)
 #[derive(Clone, PartialEq, Debug)]
@@ -93,11 +93,11 @@ pub fn setup() -> (CpAbePublicKey, CpAbeMasterKey) {
     // random number generator
     let mut rng = rand::thread_rng();
     // generator of group G1: g1 and generator of group G2: g2
-    let g1:G1 = rng.gen();
-    let g2:G2 = rng.gen();
+    let g1: G1 = rng.gen();
+    let g2: G2 = rng.gen();
     // random
-    let beta:Fr = rng.gen();
-    let alpha:Fr = rng.gen();
+    let beta: Fr = rng.gen();
+    let alpha: Fr = rng.gen();
     // vectors
     // calulate h and f
     let h = g1 * beta;
@@ -109,7 +109,13 @@ pub fn setup() -> (CpAbePublicKey, CpAbeMasterKey) {
 
     // return PK and MSK
     return (
-        CpAbePublicKey { g1, g2, h, f, e_gg_alpha },
+        CpAbePublicKey {
+            g1,
+            g2,
+            h,
+            f,
+            e_gg_alpha,
+        },
         CpAbeMasterKey { beta, g2_alpha },
     );
 }
@@ -136,15 +142,15 @@ pub fn keygen(
     let mut rng = rand::thread_rng();
     // generate random r1 and r2 and sum of both
     // compute Br as well because it will be used later too
-    let r:Fr = rng.gen();
+    let r: Fr = rng.gen();
     let g2_r = pk.g2 * r;
     let d = (msk.g2_alpha + g2_r) * msk.beta.inverse().unwrap();
     let mut d_j: Vec<CpAbeAttribute> = Vec::new();
     for j in attributes {
-        let r_j:Fr = rng.gen();
+        let r_j: Fr = rng.gen();
         d_j.push(CpAbeAttribute {
             string: j.to_string(), // attribute name
-            g1: pk.g1 * r_j, // D_j Prime
+            g1: pk.g1 * r_j,       // D_j Prime
             g2: g2_r + (sha3_hash(pk.g2, j).expect("could not hash _j") * r_j), // D_j
         });
     }
@@ -164,7 +170,8 @@ pub fn delegate(
     sk: &CpAbeSecretKey,
     subset: &[&str],
 ) -> Option<CpAbeSecretKey> {
-    let attr_str = sk.d_j
+    let attr_str = sk
+        .d_j
         .iter()
         .map(|val| val.string.as_str())
         .collect::<Vec<_>>();
@@ -187,7 +194,8 @@ pub fn delegate(
         // calculate derived attributes
         for attr in subset {
             let r_j: Fr = rng.gen();
-            let d_j_val = sk.d_j
+            let d_j_val = sk
+                .d_j
                 .iter()
                 .find(|x| x.string == attr.to_string())
                 .map(|x| (x.g1, x.g2))
@@ -195,14 +203,16 @@ pub fn delegate(
             d_j.push(CpAbeAttribute {
                 string: attr.to_string(),
                 g1: d_j_val.0 + (pk.g1 * r_j),
-                g2: d_j_val.1 + (sha3_hash(pk.g2, attr.as_ref()).expect("could not hash _attr") * r_j) + (pk.g2 * r),
+                g2: d_j_val.1
+                    + (sha3_hash(pk.g2, attr.as_ref()).expect("could not hash _attr") * r_j)
+                    + (pk.g2 * r),
             });
         }
         Some(CpAbeSecretKey {
             d: sk.d + (pk.f * r),
             d_j,
         })
-    }
+    };
 }
 
 /// The encrypt algorithm of BSW CP-ABE. Generates a new CpAbeCiphertext using an Ac17PublicKey, an access policy given as String and some plaintext data given as [u8].
@@ -225,7 +235,7 @@ pub fn encrypt(
     }
     let mut rng = rand::thread_rng();
     // the shared root secret
-    let secret:Fr = rng.gen();
+    let secret: Fr = rng.gen();
     let msg: Gt = rng.gen();
     match parse(policy, language) {
         Ok(policy_value) => {
@@ -242,11 +252,17 @@ pub fn encrypt(
                 });
             }
             match encrypt_symmetric(msg, &plaintext.to_vec()) {
-                Ok(data) => Ok(CpAbeCiphertext { policy: (policy.to_string(), language), c, c_p, c_y, data }),
-                Err(e) => Err(e)
+                Ok(data) => Ok(CpAbeCiphertext {
+                    policy: (policy.to_string(), language),
+                    c,
+                    c_p,
+                    c_y,
+                    data,
+                }),
+                Err(e) => Err(e),
             }
         }
-        Err(e) => Err(e)
+        Err(e) => Err(e),
     }
 }
 
@@ -257,24 +273,22 @@ pub fn encrypt(
 ///	* `sk` - A Secret Key (SK), generated by the function keygen()
 ///	* `ct` - An BSW CP-ABE Ciphertext
 ///
-pub fn decrypt(
-    sk: &CpAbeSecretKey,
-    ct: &CpAbeCiphertext
-) -> Result<Vec<u8>, RabeError> {
-    let attr = sk.d_j
-        .iter()
-        .map(|v| v.string.clone() )
-        .collect::<Vec<_>>();
+pub fn decrypt(sk: &CpAbeSecretKey, ct: &CpAbeCiphertext) -> Result<Vec<u8>, RabeError> {
+    let attr = sk.d_j.iter().map(|v| v.string.clone()).collect::<Vec<_>>();
     match parse(ct.policy.0.as_ref(), ct.policy.1) {
         Ok(policy_value) => {
             return if traverse_policy(&attr, &policy_value, PolicyType::Leaf) == false {
-                Err(RabeError::new("Error in bsw/encrypt: attributes do not match policy."))
+                Err(RabeError::new(
+                    "Error in bsw/encrypt: attributes do not match policy.",
+                ))
             } else {
                 match calc_pruned(&attr, &policy_value, None) {
                     Err(e) => Err(e),
                     Ok(pruned) => {
                         if !pruned.0 {
-                            Err(RabeError::new("Error in bsw/encrypt: attributes do not match policy."))
+                            Err(RabeError::new(
+                                "Error in bsw/encrypt: attributes do not match policy.",
+                            ))
                         } else {
                             let mut z: Vec<(String, Fr)> = Vec::new();
                             z = calc_coefficients(&policy_value, Some(Fr::one()), z, None).unwrap();
@@ -288,10 +302,11 @@ pub fn decrypt(
                                             Some(d_j) => {
                                                 for _z_tuple in z.iter() {
                                                     if _z_tuple.0 == _j {
-                                                        a = a *
-                                                            (pairing(c_y.g1, d_j.g2) *
-                                                                pairing(d_j.g1, c_y.g2).inverse())
-                                                                .pow(_z_tuple.1);
+                                                        a = a
+                                                            * (pairing(c_y.g1, d_j.g2)
+                                                                * pairing(d_j.g1, c_y.g2)
+                                                                    .inverse())
+                                                            .pow(_z_tuple.1);
                                                     }
                                                 }
                                             }
@@ -311,9 +326,9 @@ pub fn decrypt(
                         }
                     }
                 }
-            }
+            };
         }
-        Err(e) => Err(e)
+        Err(e) => Err(e),
     }
 }
 
@@ -337,14 +352,15 @@ mod tests {
         att_not_matching.push("D");
 
         // our plaintext
-        let plaintext = String::from("dance like no one's watching, encrypt like everyone is!")
-            .into_bytes();
+        let plaintext =
+            String::from("dance like no one's watching, encrypt like everyone is!").into_bytes();
 
         // our policy
         let policy = String::from(r#"{"name": "or", "children": [{"name": "A"}, {"name": "B"}]}"#);
 
         // cp-abe ciphertext
-        let ct_cp: CpAbeCiphertext = encrypt(&pk, &policy, PolicyLanguage::JsonPolicy, &plaintext).unwrap();
+        let ct_cp: CpAbeCiphertext =
+            encrypt(&pk, &policy, PolicyLanguage::JsonPolicy, &plaintext).unwrap();
 
         // and now decrypt again with mathcing sk
         let _match = decrypt(&keygen(&pk, &msk, &att_matching).unwrap(), &ct_cp);
@@ -364,15 +380,15 @@ mod tests {
         for n in 1..11 {
             att_matching.push(["attr".to_string(), n.to_string()].concat());
         }
-        let att: Vec<&str>  = att_matching.iter().map(|x| x.as_ref()).collect();
+        let att: Vec<&str> = att_matching.iter().map(|x| x.as_ref()).collect();
         // a set of two attributes NOT matching the policy
         let mut att_not_matching: Vec<&str> = Vec::new();
         att_not_matching.push("attr201");
         att_not_matching.push("attr200");
 
         // our plaintext
-        let plaintext = String::from("dance like no one's watching, encrypt like everyone is!")
-            .into_bytes();
+        let plaintext =
+            String::from("dance like no one's watching, encrypt like everyone is!").into_bytes();
 
         let mut _policy = String::from("{\"name\": \"and\", \"children\": [");
         for n in 1..11 {
@@ -388,7 +404,8 @@ mod tests {
         }
         _policy.push_str(&String::from("}"));
         // cp-abe ciphertext
-        let ct_cp: CpAbeCiphertext = encrypt(&pk, &_policy, PolicyLanguage::JsonPolicy, &plaintext).unwrap();
+        let ct_cp: CpAbeCiphertext =
+            encrypt(&pk, &_policy, PolicyLanguage::JsonPolicy, &plaintext).unwrap();
 
         // and now decrypt again with mathcing sk
         let _match = decrypt(&keygen(&pk, &msk, &att).unwrap(), &ct_cp);
@@ -404,7 +421,7 @@ mod tests {
         // setup scheme
         let (pk, msk) = setup();
         let _num_nested = 30; // maximum at about 50 to 60
-        // a set of two attributes matching the policy
+                              // a set of two attributes matching the policy
         let mut att_matching: Vec<String> = Vec::new();
         for _i in 1..(_num_nested + 1) {
             att_matching.push(["a".to_string(), _i.to_string()].concat());
@@ -415,9 +432,11 @@ mod tests {
         att_not_matching.push("x");
         att_not_matching.push("y");
         // our plaintext
-        let plaintext = String::from("dance like no one's watching, encrypt like everyone is!")
-            .into_bytes();
-        let mut policy = String::from("{\"name\":\"and\", \"children\": [{\"name\": \"a2\"}, {\"name\": \"a1\"}]}");
+        let plaintext =
+            String::from("dance like no one's watching, encrypt like everyone is!").into_bytes();
+        let mut policy = String::from(
+            "{\"name\":\"and\", \"children\": [{\"name\": \"a2\"}, {\"name\": \"a1\"}]}",
+        );
         for _i in 3.._num_nested {
             let mut policy_str = String::from("{\"name\":\"and\", \"children\":[");
             policy_str.push_str("{\"name\":\"");
@@ -428,7 +447,8 @@ mod tests {
             policy = policy_str.clone();
         }
         // cp-abe ciphertext
-        let ct_cp: CpAbeCiphertext = encrypt(&pk, &policy, PolicyLanguage::JsonPolicy, &plaintext).unwrap();
+        let ct_cp: CpAbeCiphertext =
+            encrypt(&pk, &policy, PolicyLanguage::JsonPolicy, &plaintext).unwrap();
         // and now decrypt again with mathcing sk
         let _match = decrypt(&keygen(&pk, &msk, &attr).unwrap(), &ct_cp);
         assert_eq!(_match.is_ok(), true);
@@ -451,14 +471,17 @@ mod tests {
         att_not_matching.push("C");
 
         // our plaintext
-        let plaintext = String::from("dance like no one's watching, encrypt like everyone is!")
-            .into_bytes();
+        let plaintext =
+            String::from("dance like no one's watching, encrypt like everyone is!").into_bytes();
 
         // our policy
-        let policy = String::from(r#"{"name": "or", "children": [{"name": "X"}, {"name": "Y"}, {"name": "A"}]}"#);
+        let policy = String::from(
+            r#"{"name": "or", "children": [{"name": "X"}, {"name": "Y"}, {"name": "A"}]}"#,
+        );
 
         // cp-abe ciphertext
-        let ct_cp: CpAbeCiphertext = encrypt(&pk, &policy, PolicyLanguage::JsonPolicy, &plaintext).unwrap();
+        let ct_cp: CpAbeCiphertext =
+            encrypt(&pk, &policy, PolicyLanguage::JsonPolicy, &plaintext).unwrap();
 
         // and now decrypt again with mathcing sk
         let _match = decrypt(&keygen(&pk, &msk, &att_matching).unwrap(), &ct_cp);
@@ -482,12 +505,14 @@ mod tests {
         att_not_matching.push("A");
         att_not_matching.push("D");
         // our plaintext
-        let plaintext = String::from("dance like no one's watching, encrypt like everyone is!")
-            .into_bytes();
+        let plaintext =
+            String::from("dance like no one's watching, encrypt like everyone is!").into_bytes();
         // our policy
-        let policy = String::from(r#"{"name": "and", "children":  [{"name": "A"}, {"name": "B"}]}"#);
+        let policy =
+            String::from(r#"{"name": "and", "children":  [{"name": "A"}, {"name": "B"}]}"#);
         // cp-abe ciphertext
-        let ct_cp: CpAbeCiphertext = encrypt(&pk, &policy, PolicyLanguage::JsonPolicy, &plaintext).unwrap();
+        let ct_cp: CpAbeCiphertext =
+            encrypt(&pk, &policy, PolicyLanguage::JsonPolicy, &plaintext).unwrap();
         // and now decrypt again with mathcing sk
         let _match = decrypt(&keygen(&pk, &msk, &att_matching).unwrap(), &ct_cp);
         assert_eq!(_match.is_ok(), true);
@@ -509,12 +534,15 @@ mod tests {
         att_not_matching.push("A");
         att_not_matching.push("C");
         // our plaintext
-        let plaintext = String::from("dance like no one's watching, encrypt like everyone is!")
-            .into_bytes();
+        let plaintext =
+            String::from("dance like no one's watching, encrypt like everyone is!").into_bytes();
         // our policy
-        let policy = String::from(r#"{"name": "or", "children": [{"name": "and", "children":  [{"name": "A"}, {"name": "B"}]}, {"name": "and", "children":  [{"name": "B"}, {"name": "C"}]}]}"#);
+        let policy = String::from(
+            r#"{"name": "or", "children": [{"name": "and", "children":  [{"name": "A"}, {"name": "B"}]}, {"name": "and", "children":  [{"name": "B"}, {"name": "C"}]}]}"#,
+        );
         // cp-abe ciphertext
-        let ct_cp: CpAbeCiphertext = encrypt(&pk, &policy, PolicyLanguage::JsonPolicy, &plaintext).unwrap();
+        let ct_cp: CpAbeCiphertext =
+            encrypt(&pk, &policy, PolicyLanguage::JsonPolicy, &plaintext).unwrap();
         // and now decrypt again with mathcing sk
         let _match = decrypt(&keygen(&pk, &msk, &att_matching).unwrap(), &ct_cp);
         assert_eq!(_match.is_ok(), true);
@@ -537,12 +565,15 @@ mod tests {
         att_not_matching.push("A");
         att_not_matching.push("D");
         // our plaintext
-        let plaintext = String::from("dance like no one's watching, encrypt like everyone is!")
-            .into_bytes();
+        let plaintext =
+            String::from("dance like no one's watching, encrypt like everyone is!").into_bytes();
         // our policy
-        let policy = String::from(r#"{"name": "and", "children":  [{"name": "A"}, {"name": "B"}, {"name": "C"}]}"#);
+        let policy = String::from(
+            r#"{"name": "and", "children":  [{"name": "A"}, {"name": "B"}, {"name": "C"}]}"#,
+        );
         // cp-abe ciphertext
-        let ct_cp: CpAbeCiphertext = encrypt(&pk, &policy, PolicyLanguage::JsonPolicy, &plaintext).unwrap();
+        let ct_cp: CpAbeCiphertext =
+            encrypt(&pk, &policy, PolicyLanguage::JsonPolicy, &plaintext).unwrap();
         // and now decrypt again with mathcing sk
         let _match = decrypt(&keygen(&pk, &msk, &att_matching).unwrap(), &ct_cp);
         assert_eq!(_match.is_ok(), true);
@@ -557,16 +588,19 @@ mod tests {
         // setup scheme
         let (pk, msk) = setup();
         // a set of two attributes matching the policy
-        let att_matching: Vec<&str> = vec!["A","B","C","D"];
+        let att_matching: Vec<&str> = vec!["A", "B", "C", "D"];
         // a set of two attributes NOT matching the policy
-        let att_not_matching: Vec<&str> = vec!["A","C"];
+        let att_not_matching: Vec<&str> = vec!["A", "C"];
         // our plaintext
-        let plaintext = String::from("dance like no one's watching, encrypt like everyone is!")
-            .into_bytes();
+        let plaintext =
+            String::from("dance like no one's watching, encrypt like everyone is!").into_bytes();
         // our policy
-        let policy = String::from(r#"{"name": "or", "children": [{"name": "and", "children":  [{"name": "A"}, {"name": "B"}]}, {"name": "and", "children":  [{"name": "C"}, {"name": "D"}]}]}"#);
+        let policy = String::from(
+            r#"{"name": "or", "children": [{"name": "and", "children":  [{"name": "A"}, {"name": "B"}]}, {"name": "and", "children":  [{"name": "C"}, {"name": "D"}]}]}"#,
+        );
         // cp-abe ciphertext
-        let ct_cp: CpAbeCiphertext = encrypt(&pk, &policy, PolicyLanguage::JsonPolicy, &plaintext).unwrap();
+        let ct_cp: CpAbeCiphertext =
+            encrypt(&pk, &policy, PolicyLanguage::JsonPolicy, &plaintext).unwrap();
         // and now decrypt again with mathcing sk
         let _match = decrypt(&keygen(&pk, &msk, &att_matching).unwrap(), &ct_cp);
         assert_eq!(_match.is_ok(), true);
@@ -580,16 +614,18 @@ mod tests {
         // setup scheme
         let (pk, msk) = setup();
         // a set of three attributes matching the policy
-        let att_matching: Vec<&str> = vec!["A","B","C"];
+        let att_matching: Vec<&str> = vec!["A", "B", "C"];
         // a set of two delegated attributes
-        let delegate_att: Vec<&str> = vec!["A","B"];
+        let delegate_att: Vec<&str> = vec!["A", "B"];
         // our plaintext
-        let plaintext = String::from("dance like no one's watching, encrypt like everyone is!")
-            .into_bytes();
+        let plaintext =
+            String::from("dance like no one's watching, encrypt like everyone is!").into_bytes();
         // our policy
-        let policy = String::from(r#"{"name": "and", "children":  [{"name": "A"}, {"name": "B"}]}"#);
+        let policy =
+            String::from(r#"{"name": "and", "children":  [{"name": "A"}, {"name": "B"}]}"#);
         // cp-abe ciphertext
-        let ct_cp: CpAbeCiphertext = encrypt(&pk, &policy, PolicyLanguage::JsonPolicy, &plaintext).unwrap();
+        let ct_cp: CpAbeCiphertext =
+            encrypt(&pk, &policy, PolicyLanguage::JsonPolicy, &plaintext).unwrap();
         // a cp-abe SK key matching
         let sk: CpAbeSecretKey = keygen(&pk, &msk, &att_matching).unwrap();
         // delegate a cp-abe SK

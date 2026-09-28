@@ -20,22 +20,22 @@
 //! let sk: KpAbeSecretKey = keygen(&pk, &msk, &policy, PolicyLanguage::HumanPolicy).unwrap();
 //! assert_eq!(decrypt(&sk, &ct_kp).unwrap(), plaintext);
 //! ```
-use rabe_bn::{Group, Fr, G1, G2, Gt, pairing};
-use std::ops::Neg;
-use utils::{
-    tools::*,
-    secretsharing::{gen_shares_policy, calc_coefficients, calc_pruned},
-    aes::*,
-    hash::{sha3_hash_fr, sha3_hash}
-};
-use rand::Rng;
-use utils::policy::pest::{PolicyLanguage, parse};
 use crate::error::RabeError;
-#[cfg(feature = "serde")]
-use serde::{Serialize, Deserialize};
+use crate::utils::policy::pest::{parse, PolicyLanguage};
+use crate::utils::secretsharing::remove_index;
+use crate::utils::{
+    aes::*,
+    hash::{sha3_hash, sha3_hash_fr},
+    secretsharing::{calc_coefficients, calc_pruned, gen_shares_policy},
+    tools::*,
+};
 #[cfg(feature = "borsh")]
-use borsh::{BorshSerialize, BorshDeserialize};
-use utils::secretsharing::remove_index;
+use borsh::{BorshDeserialize, BorshSerialize};
+use rabe_bn::{pairing, Fr, Group, Gt, G1, G2};
+use rand::Rng;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+use std::ops::Neg;
 
 /// A LSW Public Key (PK)
 #[derive(Clone, PartialEq, Debug)]
@@ -87,15 +87,15 @@ pub fn setup() -> (KpAbePublicKey, KpAbeMasterKey) {
     // random number generator
     let mut rng = rand::thread_rng();
     // generate random alpha1, alpha2 and b
-    let alpha1:Fr = rng.gen();
-    let alpha2:Fr = rng.gen();
-    let b:Fr = rng.gen();
+    let alpha1: Fr = rng.gen();
+    let alpha2: Fr = rng.gen();
+    let b: Fr = rng.gen();
 
     let alpha = alpha1 * alpha2;
-    let g1:G1 = rng.gen();
-    let g2:G2 = rng.gen();
-    let h_g1:G1 = rng.gen();
-    let h_g2:G2 = rng.gen();
+    let g1: G1 = rng.gen();
+    let g2: G2 = rng.gen();
+    let h_g1: G1 = rng.gen();
+    let h_g2: G2 = rng.gen();
     let g1_b = g1 * b;
     let g1_b2 = g1_b * b;
     let h_b = h_g1 * b;
@@ -103,8 +103,21 @@ pub fn setup() -> (KpAbePublicKey, KpAbeMasterKey) {
     let e_gg_alpha = pairing(g1, g2).pow(alpha);
     // return PK and MSK
     return (
-        KpAbePublicKey { g1, g2, g1_b, g1_b2, h_b, e_gg_alpha },
-        KpAbeMasterKey { alpha1, alpha2, b, h_g1, h_g2 }
+        KpAbePublicKey {
+            g1,
+            g2,
+            g1_b,
+            g1_b2,
+            h_b,
+            e_gg_alpha,
+        },
+        KpAbeMasterKey {
+            alpha1,
+            alpha2,
+            b,
+            h_g1,
+            h_g2,
+        },
     );
 }
 
@@ -127,45 +140,43 @@ pub fn keygen(
     // random number generator
     let mut rng = rand::thread_rng();
     match parse(policy, language) {
-        Ok(policy_value) => {
-            match gen_shares_policy(msk.alpha1, &policy_value, None) {
-                Some(shares) => {
-                    let mut dj: Vec<(String, G1, G2, G1, G1, G1)> = Vec::new();
-                    for (share_str, share_value) in shares.into_iter() {
-                        let striped = remove_index(&share_str);
-                        let random:Fr = rng.gen();
-                        if is_negative(&striped) {
-                            let share_hash = sha3_hash_fr(&striped).expect("could not hash _share_str");
-                            dj.push((
-                                striped,
-                                G1::zero(),
-                                G2::zero(),
-                                (pk.g1 * share_value) + (pk.g1_b2 * random),
-                                pk.g1_b * (share_hash * random) + (msk.h_g1 * random),
-                                pk.g1 * random.neg(),
-                            ));
-                        } else {
-                            let share_hash = sha3_hash(pk.g1, &striped).expect("could not hash _share_str");
-                            dj.push((
-                                striped,
-                                (pk.g1 * (msk.alpha2 * share_value))
-                                    + (share_hash * random),
-                                pk.g2 * random,
-                                G1::zero(),
-                                G1::zero(),
-                                G1::zero(),
-                            ));
-                        }
+        Ok(policy_value) => match gen_shares_policy(msk.alpha1, &policy_value, None) {
+            Some(shares) => {
+                let mut dj: Vec<(String, G1, G2, G1, G1, G1)> = Vec::new();
+                for (share_str, share_value) in shares.into_iter() {
+                    let striped = remove_index(&share_str);
+                    let random: Fr = rng.gen();
+                    if is_negative(&striped) {
+                        let share_hash = sha3_hash_fr(&striped).expect("could not hash _share_str");
+                        dj.push((
+                            striped,
+                            G1::zero(),
+                            G2::zero(),
+                            (pk.g1 * share_value) + (pk.g1_b2 * random),
+                            pk.g1_b * (share_hash * random) + (msk.h_g1 * random),
+                            pk.g1 * random.neg(),
+                        ));
+                    } else {
+                        let share_hash =
+                            sha3_hash(pk.g1, &striped).expect("could not hash _share_str");
+                        dj.push((
+                            striped,
+                            (pk.g1 * (msk.alpha2 * share_value)) + (share_hash * random),
+                            pk.g2 * random,
+                            G1::zero(),
+                            G1::zero(),
+                            G1::zero(),
+                        ));
                     }
-                    return Ok(KpAbeSecretKey {
-                        policy: (policy.to_string(), language),
-                        dj,
-                    });
-                },
-                None => Err(RabeError::new("could not share secret over policy"))
+                }
+                return Ok(KpAbeSecretKey {
+                    policy: (policy.to_string(), language),
+                    dj,
+                });
             }
-        }
-        Err(e) => Err(e)
+            None => Err(RabeError::new("could not share secret over policy")),
+        },
+        Err(e) => Err(e),
     }
 }
 
@@ -190,7 +201,7 @@ pub fn encrypt(
         // attribute vector
         let mut ej: Vec<(String, G1, G1, G1)> = Vec::new();
         // random secret
-        let secret:Fr = rng.gen();
+        let secret: Fr = rng.gen();
         // sx vector
         let mut sx: Vec<Fr> = Vec::new();
         sx.push(secret);
@@ -203,7 +214,10 @@ pub fn encrypt(
                 _attr.to_string(),
                 sha3_hash(pk.g1, &_attr).expect("could not hash _attr") * secret,
                 pk.g1_b * sx[_i.clone()],
-                (pk.g1_b2 * (sx[_i.clone()] * sha3_hash_fr(&_attr.to_string()).expect("could not hash _attr"))) + (pk.h_b * sx[_i]),
+                (pk.g1_b2
+                    * (sx[_i.clone()]
+                        * sha3_hash_fr(&_attr.to_string()).expect("could not hash _attr")))
+                    + (pk.h_b * sx[_i]),
             ));
         }
         // random message
@@ -213,7 +227,7 @@ pub fn encrypt(
         //Encrypt plaintext using derived key from secret
         match encrypt_symmetric(msg, &plaintext.to_vec()) {
             Ok(ct) => Ok(KpAbeCiphertext { e1, e2, ej, ct }),
-            Err(e) => Err(e)
+            Err(e) => Err(e),
         }
     }
 }
@@ -225,10 +239,7 @@ pub fn encrypt(
 ///	* `sk` - A Secret Key (SK), generated by the function keygen()
 ///	* `ct` - A LSW KP-ABE Ciphertext
 ///
-pub fn decrypt(
-    sk: &KpAbeSecretKey,
-    ct: &KpAbeCiphertext
-) -> Result<Vec<u8>, RabeError> {
+pub fn decrypt(sk: &KpAbeSecretKey, ct: &KpAbeCiphertext) -> Result<Vec<u8>, RabeError> {
     let attr = ct
         .ej
         .iter()
@@ -243,12 +254,14 @@ pub fn decrypt(
                         let mut prod_t = Gt::one();
                         let mut _z_y = Gt::one();
                         let mut coeff_list: Vec<(String, Fr)> = Vec::new();
-                        coeff_list = calc_coefficients(&policy_value, Some(Fr::one()), coeff_list, None).unwrap();
+                        coeff_list =
+                            calc_coefficients(&policy_value, Some(Fr::one()), coeff_list, None)
+                                .unwrap();
                         for attr_str in list.iter() {
                             let sk_attr = sk
                                 .dj
                                 .iter()
-                                .filter(|_attr| { _attr.0 == attr_str.0.to_string() })
+                                .filter(|_attr| _attr.0 == attr_str.0.to_string())
                                 .nth(0)
                                 .unwrap();
                             let ct_attr = ct
@@ -280,12 +293,14 @@ pub fn decrypt(
                         let msg: Gt = ct.e1 * prod_t.inverse();
                         decrypt_symmetric(msg, &ct.ct)
                     } else {
-                        Err(RabeError::new("Error in lsw/decrypt: attributes do not match policy."))
+                        Err(RabeError::new(
+                            "Error in lsw/decrypt: attributes do not match policy.",
+                        ))
                     }
                 }
-            }
+            };
         }
-        Err(e)=> Err(e)
+        Err(e) => Err(e),
     }
 }
 
@@ -299,7 +314,7 @@ mod tests {
         // setup scheme
         let (pk, msk) = setup();
         // a set of two attributes matching the policy
-        let att_matching: Vec<&str> = vec!["A","B","C"];
+        let att_matching: Vec<&str> = vec!["A", "B", "C"];
         // our plaintext
         let plaintext =
             String::from("dance like no one's watching, encrypt like everyone is!").into_bytes();
@@ -318,7 +333,7 @@ mod tests {
         // setup scheme
         let (pk, msk) = setup();
         // a set of two attributes matching the policy
-        let att_matching: Vec<&str> = vec!["A","B","C"];
+        let att_matching: Vec<&str> = vec!["A", "B", "C"];
         // our plaintext
         let plaintext =
             String::from("dance like no one's watching, encrypt like everyone is!").into_bytes();
@@ -337,13 +352,14 @@ mod tests {
         // setup scheme
         let (pk, msk) = setup();
         // a set of two attributes matching the policy
-        let att_matching: Vec<&str> = vec!["X","Y","Z"];
+        let att_matching: Vec<&str> = vec!["X", "Y", "Z"];
         // our plaintext
         let plaintext =
             String::from("dance like no one's watching, encrypt like everyone is!").into_bytes();
         // our policy
-        let policy =
-            String::from(r#"{"name": "or", "children": [{"name": "A"}, {"name": "and", "children": [{"name": "Y"}, {"name": "Z"}]}]}"#);
+        let policy = String::from(
+            r#"{"name": "or", "children": [{"name": "A"}, {"name": "and", "children": [{"name": "Y"}, {"name": "Z"}]}]}"#,
+        );
         // kp-abe ciphertext
         let ct: KpAbeCiphertext = encrypt(&pk, &att_matching, &plaintext).unwrap();
         // a kp-abe SK key
@@ -357,7 +373,7 @@ mod tests {
         // setup scheme
         let (pk, msk) = setup();
         // a set of two attributes matching the policy
-        let att_matching: Vec<&str> = vec!["A","B"];
+        let att_matching: Vec<&str> = vec!["A", "B"];
         // our plaintext
         let plaintext =
             String::from("dance like no one's watching, encrypt like everyone is!").into_bytes();

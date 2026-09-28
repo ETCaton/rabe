@@ -22,26 +22,23 @@
 //!let matching = decrypt(&gk, &bob, &ct).unwrap();
 //!assert_eq!(matching, plaintext);
 //! ```
-use std::string::String;
-use rand::Rng;
-use rabe_bn::{Fr, G1, G2, Gt, pairing};
-use utils::{
-    secretsharing::{
-        calc_coefficients,
-        calc_pruned
-    },
-    policy::msp::AbePolicy,
-    tools::*,
-    aes::*,
-    hash::sha3_hash
-};
-use utils::policy::pest::{PolicyLanguage, parse, PolicyType};
-use utils::secretsharing::{gen_shares_policy, remove_index};
 use crate::error::RabeError;
-#[cfg(feature = "serde")]
-use serde::{Serialize, Deserialize};
+use crate::utils::policy::pest::{parse, PolicyLanguage, PolicyType};
+use crate::utils::secretsharing::{gen_shares_policy, remove_index};
+use crate::utils::{
+    aes::*,
+    hash::sha3_hash,
+    policy::msp::AbePolicy,
+    secretsharing::{calc_coefficients, calc_pruned},
+    tools::*,
+};
 #[cfg(feature = "borsh")]
-use borsh::{BorshSerialize, BorshDeserialize};
+use borsh::{BorshDeserialize, BorshSerialize};
+use rabe_bn::{pairing, Fr, Gt, G1, G2};
+use rand::Rng;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+use std::string::String;
 
 /// An AW11 Global Parameters Key (GK)
 #[derive(Clone, PartialEq, Debug)]
@@ -118,10 +115,7 @@ pub fn setup() -> Aw11GlobalKey {
 ///
 /// In this scheme, all attributes are converted to upper case bevor calculation, i.e. they are case insensitive
 /// This means that all attributes "tEsT", "TEST" and "test" are the same in this scheme.
-pub fn authgen(
-    gk: &Aw11GlobalKey,
-    attributes: &[&str],
-) -> Option<(Aw11PublicKey, Aw11MasterKey)> {
+pub fn authgen(gk: &Aw11GlobalKey, attributes: &[&str]) -> Option<(Aw11PublicKey, Aw11MasterKey)> {
     // if no attibutes or an empty policy
     // maybe add empty msk also here
     if attributes.is_empty() {
@@ -132,18 +126,14 @@ pub fn authgen(
     // generator of group G1: g and generator of group G2: h
     let mut sk: Vec<(String, Fr, Fr)> = Vec::new(); //dictionary of {s: {alpha_i, y_i}}
     let mut pk: Vec<(String, Gt, G2)> = Vec::new(); // dictionary of {s: {e(g,g)^alpha_i, g1^y_i}}
-    // now calculate attribute values
+                                                    // now calculate attribute values
     for attr in attributes {
         let name = attr.to_string().to_uppercase();
         // calculate randomness
-        let alpha_i:Fr = rng.gen();
-        let y_i:Fr = rng.gen();
+        let alpha_i: Fr = rng.gen();
+        let y_i: Fr = rng.gen();
         sk.push((name.clone(), alpha_i, y_i));
-        pk.push((
-            name,
-            pairing(gk.g1, gk.g2).pow(alpha_i),
-            gk.g2 * y_i,
-        ));
+        pk.push((name, pairing(gk.g1, gk.g2).pow(alpha_i), gk.g2 * y_i));
     }
     // return PK and MSK
     return Some((Aw11PublicKey { attr: pk }, Aw11MasterKey { attr: sk }));
@@ -171,17 +161,15 @@ pub fn keygen(
     // if no attibutes or no gid
     if attributes.is_empty() {
         Err(RabeError::new("empty _attributes"))
-    }
-    else if name.is_empty() {
+    } else if name.is_empty() {
         Err(RabeError::new("empty _name"))
-    }
-    else {
+    } else {
         let mut _sk: Aw11SecretKey = Aw11SecretKey {
             gid: name.to_string(),
             attr: Vec::new(),
         };
         for _attribute in attributes {
-            if let Err(e) =  add_to_attribute(gk, msk, _attribute, &mut _sk) {
+            if let Err(e) = add_to_attribute(gk, msk, _attribute, &mut _sk) {
                 return Err(e);
             }
         }
@@ -206,11 +194,9 @@ pub fn add_to_attribute(
     // if no attibutes or no gid
     if attribute.is_empty() {
         Err(RabeError::new("empty _attributes"))
-    }
-    else if sk.gid.is_empty() {
+    } else if sk.gid.is_empty() {
         Err(RabeError::new("empty _gid"))
-    }
-    else {
+    } else {
         match sha3_hash(gk.g1, &sk.gid) {
             Ok(hash) => {
                 let auth_attribute = msk
@@ -224,8 +210,8 @@ pub fn add_to_attribute(
                     (gk.g1 * auth_attribute.1) + (hash * auth_attribute.2),
                 ));
                 Ok(())
-            },
-            Err(e) => Err(e)
+            }
+            Err(e) => Err(e),
         }
     }
 }
@@ -254,7 +240,7 @@ pub fn encrypt(
             let _num_cols = msp.m[0].len();
             let _num_rows = msp.m.len();
             // pick randomness
-            let _s:Fr = _rng.gen();
+            let _s: Fr = _rng.gen();
             // and calculate shares "s" and "zero"
             let _s_shares = gen_shares_policy(_s, &pol, None).unwrap();
             let _w_shares = gen_shares_policy(Fr::zero(), &pol, None).unwrap();
@@ -264,10 +250,10 @@ pub fn encrypt(
             // now calculate the C1,x C2,x and C3,x parts
             let mut c: Vec<(String, Gt, G2, G2)> = Vec::new();
             for (_i, (_attr_name, _attr_share)) in _s_shares.into_iter().enumerate() {
-                let _r_x:Fr = _rng.gen();
+                let _r_x: Fr = _rng.gen();
                 let _pk_attr = find_pk_attr(pks, &remove_index(&_attr_name.to_uppercase()));
                 match _pk_attr {
-                    None => {},
+                    None => {}
                     Some(_attr) => {
                         c.push((
                             _attr_name.clone().to_uppercase(),
@@ -280,11 +266,16 @@ pub fn encrypt(
             }
             //Encrypt plaintext using derived key from secret
             match encrypt_symmetric(_msg, &data.to_vec()) {
-                Ok(ct) => Ok(Aw11Ciphertext { policy: (policy.to_string(), language), c_0, c, ct }),
-                Err(e) => Err(e)
+                Ok(ct) => Ok(Aw11Ciphertext {
+                    policy: (policy.to_string(), language),
+                    c_0,
+                    c,
+                    ct,
+                }),
+                Err(e) => Err(e),
             }
-        },
-        Err(e) => Err(e)
+        }
+        Err(e) => Err(e),
     }
 }
 
@@ -298,7 +289,7 @@ pub fn encrypt(
 pub fn decrypt(
     gk: &Aw11GlobalKey,
     sk: &Aw11SecretKey,
-    ct: &Aw11Ciphertext
+    ct: &Aw11Ciphertext,
 ) -> Result<Vec<u8>, RabeError> {
     let str_attr = sk
         .attr
@@ -311,7 +302,9 @@ pub fn decrypt(
     return match parse(ct.policy.0.as_ref(), ct.policy.1) {
         Ok(pol) => {
             return if traverse_policy(&str_attr, &pol, PolicyType::Leaf) == false {
-                Err(RabeError::new("Error: attributes in sk do not match policy in ct."))
+                Err(RabeError::new(
+                    "Error: attributes in sk do not match policy in ct.",
+                ))
             } else {
                 let _pruned = calc_pruned(&str_attr, &pol, None);
                 match _pruned {
@@ -319,7 +312,8 @@ pub fn decrypt(
                     Ok(_p) => {
                         let (_match, _list) = _p;
                         let mut coeff_list: Vec<(String, Fr)> = Vec::new();
-                        coeff_list = calc_coefficients(&pol, Some(Fr::one()), coeff_list,None).unwrap();
+                        coeff_list =
+                            calc_coefficients(&pol, Some(Fr::one()), coeff_list, None).unwrap();
                         if _match {
                             match sha3_hash(gk.g1, &sk.gid) {
                                 Ok(hash) => {
@@ -331,12 +325,11 @@ pub fn decrypt(
                                             .filter(|_attr| _attr.0 == _current.0.to_string())
                                             .nth(0)
                                             .unwrap();
-                                        let _ct_attr = ct
-                                            .c
-                                            .iter()
-                                            .filter(|_attr| _attr.0 == _current.1.to_string())
-                                            .nth(0)
-                                            .unwrap();
+                                        let _ct_attr =
+                                            ct.c.iter()
+                                                .filter(|_attr| _attr.0 == _current.1.to_string())
+                                                .nth(0)
+                                                .unwrap();
                                         let num = _ct_attr.1 * pairing(hash, _ct_attr.3);
                                         let dem = pairing(_sk_attr.1, _ct_attr.2);
                                         let _coeff = coeff_list
@@ -351,18 +344,18 @@ pub fn decrypt(
                                     //println!("dec: {:?}", serde_json::to_string(&_msg).unwrap());
                                     // Decrypt plaintext using derived secret from cp-abe scheme
                                     decrypt_symmetric(_msg, &ct.ct)
-                                },
-                                Err(e) => Err(e)
+                                }
+                                Err(e) => Err(e),
                             }
                         } else {
                             Err(RabeError::new("Error in aw11/decrypt: attributes in sk do not match policy in ct."))
                         }
                     }
                 }
-            }
-        },
-        Err(e) => Err(e)
-    }
+            };
+        }
+        Err(e) => Err(e),
+    };
 }
 /// private function. finds the value vector of a specific attribute in a vector of various public keys
 ///
@@ -371,10 +364,7 @@ pub fn decrypt(
 ///	* `pks` - A vector of Aw11PublicKeys
 ///	* `attr` - An attribute
 ///
-fn find_pk_attr(
-    pks: &[&Aw11PublicKey],
-    attr: &str
-) -> Option<(String, Gt, G2)> {
+fn find_pk_attr(pks: &[&Aw11PublicKey], attr: &str) -> Option<(String, Gt, G2)> {
     for _pk in pks.into_iter() {
         let _pk_attr = _pk
             .attr
@@ -400,25 +390,26 @@ mod tests {
         let _gp = setup();
         // setup attribute authority 1 with
         // a set of two attributes "A" "B" "C"
-        let att_authority1: Vec<&str> = vec!["A","B","C"];
+        let att_authority1: Vec<&str> = vec!["A", "B", "C"];
         let (_auth1_pk, _auth1_msk) = authgen(&_gp, &att_authority1).unwrap();
         // setup attribute authority 1 with
         // a set of two attributes "D" "E" "F"
-        let att_authority2: Vec<&str> = vec!["D","E","F"];
+        let att_authority2: Vec<&str> = vec!["D", "E", "F"];
         let (_auth2_pk, _auth2_msk) = authgen(&_gp, &att_authority2).unwrap();
         // setup attribute authority 1 with
         // a set of two attributes "G" "H" "I"
-        let att_authority3: Vec<&str> = vec!["G","H","I"];
+        let att_authority3: Vec<&str> = vec!["G", "H", "I"];
         let (_auth3_pk, _auth3_msk) = authgen(&_gp, &att_authority3).unwrap();
 
         // setup a user "bob" and give him some attribute-keys
-        let att_bob: Vec<&str> = vec!["H","I"];
+        let att_bob: Vec<&str> = vec!["H", "I"];
         let mut _bob = keygen(&_gp, &_auth3_msk, &String::from("bob"), &att_bob).unwrap();
         // our plaintext
         let _plaintext =
             String::from("dance like no one's watching, encrypt like everyone is!").into_bytes();
         // our policy
-        let _policy = String::from(r#"{"name": "and", "children": [{"name": "H"}, {"name": "B"}]}"#);
+        let _policy =
+            String::from(r#"{"name": "and", "children": [{"name": "H"}, {"name": "B"}]}"#);
 
         // add attribute "B" of auth1 to bobs key
         if let Err(e) = add_to_attribute(&_gp, &_auth1_msk, &String::from("B"), &mut _bob) {
@@ -427,7 +418,14 @@ mod tests {
         // a vector of public attribute keys
         let pks: Vec<&Aw11PublicKey> = vec![&_auth3_pk, &_auth1_pk];
         // cp-abe ciphertext
-        let ct_cp: Aw11Ciphertext = encrypt(&_gp, pks.as_slice(), &_policy, PolicyLanguage::JsonPolicy, &_plaintext).unwrap();
+        let ct_cp: Aw11Ciphertext = encrypt(
+            &_gp,
+            pks.as_slice(),
+            &_policy,
+            PolicyLanguage::JsonPolicy,
+            &_plaintext,
+        )
+        .unwrap();
         // and now decrypt again with mathcing sk
         let _matching = decrypt(&_gp, &_bob, &ct_cp).unwrap();
         assert_eq!(_matching, _plaintext);
@@ -439,21 +437,15 @@ mod tests {
         let _gp = setup();
         // setup attribute authority 1 with
         // a set of two attributes "A" "B"
-        let att_authority1: Vec<&str> = vec!["A","B"];
+        let att_authority1: Vec<&str> = vec!["A", "B"];
         let (_auth1_pk, _auth1_msk) = authgen(&_gp, &att_authority1).unwrap();
         // setup attribute authority 1 with
         // a set of two attributes "C" "D"
-        let att_authority2: Vec<&str> = vec!["C","D"];
+        let att_authority2: Vec<&str> = vec!["C", "D"];
         let (_auth2_pk, _auth2_msk) = authgen(&_gp, &att_authority2).unwrap();
 
         // setup a user "bob" and give him some attribute-keys
-        let mut _bob = keygen(
-            &_gp,
-            &_auth1_msk,
-            &String::from("bob"),
-            &vec!["A"],
-        )
-        .unwrap();
+        let mut _bob = keygen(&_gp, &_auth1_msk, &String::from("bob"), &vec!["A"]).unwrap();
 
         // our plaintext
         let _plaintext =
@@ -468,7 +460,14 @@ mod tests {
             panic!("Error: {}", e.to_string())
         }
         // cp-abe ciphertext
-        let ct_cp: Aw11Ciphertext = encrypt(&_gp, &pks, &_policy,PolicyLanguage::JsonPolicy,  &_plaintext).unwrap();
+        let ct_cp: Aw11Ciphertext = encrypt(
+            &_gp,
+            &pks,
+            &_policy,
+            PolicyLanguage::JsonPolicy,
+            &_plaintext,
+        )
+        .unwrap();
         // and now decrypt again with mathcing sk
         let _matching = decrypt(&_gp, &_bob, &ct_cp).unwrap();
         assert_eq!(_matching, _plaintext);
@@ -480,27 +479,22 @@ mod tests {
         let _gp = setup();
         // setup attribute authority 1 with
         // a set of two attributes "A" "B"
-        let att_authority1: Vec<&str> = vec!["A","B"];
+        let att_authority1: Vec<&str> = vec!["A", "B"];
         let (_auth1_pk, _auth1_msk) = authgen(&_gp, &att_authority1).unwrap();
         // setup attribute authority 1 with
         // a set of two attributes "C" "D"
-        let att_authority2: Vec<&str> = vec!["C","D"];
+        let att_authority2: Vec<&str> = vec!["C", "D"];
         let (_auth2_pk, _auth2_msk) = authgen(&_gp, &att_authority2).unwrap();
         // setup a user "bob" and give him some attribute-keys
-        let mut _bob = keygen(
-            &_gp,
-            &_auth1_msk,
-            &String::from("bob"),
-            &vec!["A"],
-        )
-        .unwrap();
+        let mut _bob = keygen(&_gp, &_auth1_msk, &String::from("bob"), &vec!["A"]).unwrap();
 
         // our plaintext
         let _plaintext =
             String::from("dance like no one's watching, encrypt like everyone is!").into_bytes();
         // our policy
-        let _policy =
-            String::from(r#"{"name": "or", "children": [{"name": "B"}, {"name": "and", "children": [{"name": "C"}, {"name": "D"}]}]}"#);
+        let _policy = String::from(
+            r#"{"name": "or", "children": [{"name": "B"}, {"name": "and", "children": [{"name": "C"}, {"name": "D"}]}]}"#,
+        );
 
         // a vector of public attribute keys
         let pks: Vec<&Aw11PublicKey> = vec![&_auth2_pk, &_auth1_pk];
@@ -514,7 +508,14 @@ mod tests {
         }
 
         // cp-abe ciphertext
-        let ct_cp: Aw11Ciphertext = encrypt(&_gp, pks.as_slice(), &_policy, PolicyLanguage::JsonPolicy, &_plaintext).unwrap();
+        let ct_cp: Aw11Ciphertext = encrypt(
+            &_gp,
+            pks.as_slice(),
+            &_policy,
+            PolicyLanguage::JsonPolicy,
+            &_plaintext,
+        )
+        .unwrap();
         // and now decrypt again with mathcing sk
         let _matching = decrypt(&_gp, &_bob, &ct_cp).unwrap();
         assert_eq!(_matching, _plaintext);
@@ -526,26 +527,21 @@ mod tests {
         let _gp = setup();
         // setup attribute authority 1 with
         // a set of two attributes "A" "B"
-        let att_authority1: Vec<&str> = vec!["A","B"];
+        let att_authority1: Vec<&str> = vec!["A", "B"];
         let (_auth1_pk, _auth1_msk) = authgen(&_gp, &att_authority1).unwrap();
         // setup attribute authority 1 with
         // a set of two attributes "C" "D"
-        let att_authority2: Vec<&str> = vec!["C","D"];
+        let att_authority2: Vec<&str> = vec!["C", "D"];
         let (_auth2_pk, _auth2_msk) = authgen(&_gp, &att_authority2).unwrap();
         // setup a user "bob" and give him some attribute-keys
-        let mut _bob = keygen(
-            &_gp,
-            &_auth1_msk,
-            &String::from("bob"),
-            &vec!["A"],
-        )
-        .unwrap();
+        let mut _bob = keygen(&_gp, &_auth1_msk, &String::from("bob"), &vec!["A"]).unwrap();
         // our plaintext
         let _plaintext =
             String::from("dance like no one's watching, encrypt like everyone is!").into_bytes();
         // our policy
-        let _policy =
-            String::from(r#"{"name": "or", "children": [{"name": "B"}, {"name": "and", "children": [{"name": "C"}, {"name": "A"}]}]}"#);
+        let _policy = String::from(
+            r#"{"name": "or", "children": [{"name": "B"}, {"name": "and", "children": [{"name": "C"}, {"name": "A"}]}]}"#,
+        );
         // a vector of public attribute keys
         let pks: Vec<&Aw11PublicKey> = vec![&_auth2_pk, &_auth1_pk];
         // add attribute "C" and "D" of auth2 to bobs key
@@ -553,7 +549,14 @@ mod tests {
             panic!("Error: {}", e.to_string())
         }
         // cp-abe ciphertext
-        let ct_cp: Aw11Ciphertext = encrypt(&_gp, pks.as_slice(), &_policy, PolicyLanguage::JsonPolicy, &_plaintext).unwrap();
+        let ct_cp: Aw11Ciphertext = encrypt(
+            &_gp,
+            pks.as_slice(),
+            &_policy,
+            PolicyLanguage::JsonPolicy,
+            &_plaintext,
+        )
+        .unwrap();
         // and now decrypt again
         let pt = decrypt(&_gp, &_bob, &ct_cp);
         assert_eq!(pt.is_ok(), false);

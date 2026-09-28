@@ -1,7 +1,7 @@
+use crate::utils::policy::pest::{PolicyType, PolicyValue};
+use crate::utils::secretsharing::node_index;
 use rabe_bn::*;
 use std::collections::HashSet;
-use utils::policy::pest::{PolicyValue, PolicyType};
-use utils::secretsharing::node_index;
 
 pub fn is_negative(attr: &String) -> bool {
     let first_char = &attr[..1];
@@ -13,7 +13,8 @@ pub fn usize_to_fr(i: usize) -> Fr {
 }
 
 pub fn contains(data: &Vec<String>, value: &String) -> bool {
-    let len = data.into_iter()
+    let len = data
+        .into_iter()
         .filter(|&i| i == value)
         .collect::<Vec<_>>()
         .len();
@@ -28,57 +29,65 @@ pub fn is_subset(subset: &[&str], attr: &[&str]) -> bool {
 }
 
 // used to traverse / check policy tree
-pub fn traverse_policy(attr: &Vec<String>, policy_value: &PolicyValue, policy_type: PolicyType) -> bool {
-    return (attr.len() > 0) && match policy_value {
-        PolicyValue::String(node) => (&attr).into_iter().any(|x| x == node.0),
-        PolicyValue::Object(obj) => {
-            return match obj.0 {
-                PolicyType::And => traverse_policy(attr, &obj.1.as_ref(), PolicyType::And),
-                PolicyType::Or => traverse_policy(attr, &obj.1.as_ref(), PolicyType::Or),
-                _ => true,
-            }
-        },
-        PolicyValue::Array(arrayref) => {
-            return match policy_type {
-                PolicyType::And => {
-                    let mut ret = true;
-                    for obj in arrayref.iter() {
-                        ret &= traverse_policy(attr, obj, PolicyType::Leaf)
-                    }
-                    ret
-                },
-                PolicyType::Or => {
-                    let mut ret = false;
-                    for obj in arrayref.iter() {
-                        ret |= traverse_policy(attr, obj, PolicyType::Leaf)
-                    }
-                    ret
+pub fn traverse_policy(
+    attr: &Vec<String>,
+    policy_value: &PolicyValue,
+    policy_type: PolicyType,
+) -> bool {
+    return (attr.len() > 0)
+        && match policy_value {
+            PolicyValue::String(node) => (&attr).into_iter().any(|x| x == node.0),
+            PolicyValue::Object(obj) => {
+                return match obj.0 {
+                    PolicyType::And => traverse_policy(attr, &obj.1.as_ref(), PolicyType::And),
+                    PolicyType::Or => traverse_policy(attr, &obj.1.as_ref(), PolicyType::Or),
+                    _ => true,
                 }
-                PolicyType::Leaf => false
-            };
-        }
-    };
+            }
+            PolicyValue::Array(arrayref) => {
+                return match policy_type {
+                    PolicyType::And => {
+                        let mut ret = true;
+                        for obj in arrayref.iter() {
+                            ret &= traverse_policy(attr, obj, PolicyType::Leaf)
+                        }
+                        ret
+                    }
+                    PolicyType::Or => {
+                        let mut ret = false;
+                        for obj in arrayref.iter() {
+                            ret |= traverse_policy(attr, obj, PolicyType::Leaf)
+                        }
+                        ret
+                    }
+                    PolicyType::Leaf => false,
+                };
+            }
+        };
 }
 
 pub fn get_value(_json: &PolicyValue) -> String {
     return match _json {
         PolicyValue::String(node) => node_index(node),
-        _ => "".to_string()
-    }
+        _ => "".to_string(),
+    };
 }
 
 #[cfg(test)]
 mod tests {
 
     use super::*;
-    use utils::policy::pest::{PolicyLanguage, parse};
+    use crate::utils::policy::pest::{parse, PolicyLanguage};
 
     #[test]
     fn test_traverse() {
         let policy_false = String::from(r#"what-the-heck?"#);
-        let policy1 = String::from(r#"{"name": "and", "children": [{"name": "A"}, {"name": "B"}]}"#);
+        let policy1 =
+            String::from(r#"{"name": "and", "children": [{"name": "A"}, {"name": "B"}]}"#);
         let policy2 = String::from(r#"{"name": "or", "children": [{"name": "A"}, {"name": "B"}]}"#);
-        let policy3 = String::from(r#"{"name": "and", "children": [{"name":"or", "children": [{"name": "C"}, {"name": "D"}]}, {"name": "B"}]}"#);
+        let policy3 = String::from(
+            r#"{"name": "and", "children": [{"name":"or", "children": [{"name": "C"}, {"name": "D"}]}, {"name": "B"}]}"#,
+        );
         let mut _set0: Vec<String> = Vec::new();
         _set0.push(String::from("X"));
         _set0.push(String::from("Y"));
@@ -97,7 +106,10 @@ mod tests {
         _set3.push(String::from("C"));
         _set3.push(String::from("D"));
 
-        assert_eq!(parse(policy_false.as_ref(), PolicyLanguage::JsonPolicy).is_ok() , false);
+        assert_eq!(
+            parse(policy_false.as_ref(), PolicyLanguage::JsonPolicy).is_ok(),
+            false
+        );
 
         match parse(policy1.as_ref(), PolicyLanguage::JsonPolicy) {
             Ok(pol) => {
@@ -105,8 +117,8 @@ mod tests {
                 assert_eq!(traverse_policy(&_set1, &pol, PolicyType::Leaf), true);
                 assert_eq!(traverse_policy(&_set2, &pol, PolicyType::Leaf), false);
                 assert_eq!(traverse_policy(&_set3, &pol, PolicyType::Leaf), true);
-            },
-            Err(e) => println!("test_traverse: could not parse policy1 {}", e)
+            }
+            Err(e) => println!("test_traverse: could not parse policy1 {}", e),
         }
 
         match parse(policy2.as_ref(), PolicyLanguage::JsonPolicy) {
@@ -114,8 +126,8 @@ mod tests {
                 assert_eq!(traverse_policy(&_set1, &pol, PolicyType::Leaf), true);
                 assert_eq!(traverse_policy(&_set2, &pol, PolicyType::Leaf), false);
                 assert_eq!(traverse_policy(&_set3, &pol, PolicyType::Leaf), true);
-            },
-            Err(e) => println!("test_traverse: could not parse policy2 {}", e)
+            }
+            Err(e) => println!("test_traverse: could not parse policy2 {}", e),
         }
 
         match parse(policy3.as_ref(), PolicyLanguage::JsonPolicy) {
@@ -123,8 +135,8 @@ mod tests {
                 assert_eq!(traverse_policy(&_set1, &pol, PolicyType::Leaf), false);
                 assert_eq!(traverse_policy(&_set2, &pol, PolicyType::Leaf), false);
                 assert_eq!(traverse_policy(&_set3, &pol, PolicyType::Leaf), true);
-            },
-            Err(e) => println!("test_traverse: could not parse policy3 {}", e)
+            }
+            Err(e) => println!("test_traverse: could not parse policy3 {}", e),
         }
     }
 }
