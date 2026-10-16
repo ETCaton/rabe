@@ -68,6 +68,7 @@ fn kdf<T: std::convert::Into<Vec<u8>>>(data: T) -> Vec<u8> {
     hasher.finalize().to_vec()
 }
 
+#[cfg(test)]
 mod tests {
 
     #[test]
@@ -78,5 +79,12 @@ mod tests {
         let ciphertext = encrypt_symmetric(key, &plaintext.clone().into_bytes()).unwrap();
         let reconstruct = decrypt_symmetric(key, &ciphertext).unwrap();
         assert_eq!(plaintext.into_bytes(), reconstruct);
+    }
+
+    #[test]
+    #[should_panic(expected = "")]
+    fn decrypt_symmetrics_panics_on_shorter_than_nonce_input() {
+        use crate::utils::aes::decrypt_symmetric;
+        let _ = decrypt_symmetric("key", &vec![0u8; 5]);
     }
 }

@@ -621,4 +621,65 @@ mod tests {
         assert_eq!(ct_decrypted.is_ok(), true);
         assert_eq!(ct_decrypted.unwrap(), plaintext);
     }
+
+    mod findings {
+        use super::*;
+
+        const NESTED_AND_POLICY: &str = r#"{"name": "and", "children": [{"name": "and", "children": [{"name": "auth1::A"}, {"name": "auth1::A"}]}, {"name": "and", "children": [{"name": "auth1::A"}, {"name": "auth1::A"}]}]}"#;
+
+        // MKE08 doesn't notice if you swap the policy because it doesn't use it at decryption time;
+        // this yields surprising but not harmful behavior where the policy in the ciphertext
+        // has no relation to what will decrypt successfully
+        #[test]
+        fn decrypts_successfully_despite_policy_swap() {
+            let (pk, msk) = setup();
+            let mut user = keygen(&pk, &msk, "alice");
+            let auth1 = authgen("auth1");
+            let attr_pk = request_authority_pk(&pk, "auth1::A", &auth1).unwrap();
+            user.sk_a
+                .push(request_authority_sk(&user.pk, "auth1::A", &auth1).unwrap());
+
+            let plaintext =
+                b"rabe is an Attribute Based Encryption library, written in Rust".to_vec();
+            let mut ct = encrypt(
+                &pk,
+                &[&attr_pk],
+                r#"{"name": "auth1::A"}"#,
+                PolicyLanguage::JsonPolicy,
+                &plaintext,
+            )
+            .unwrap();
+
+            ct.policy = (
+                String::from(
+                    r#"{"name": "or", "children": [{"name": "auth1::A"}, {"name": "auth1::A"}]}"#,
+                ),
+                PolicyLanguage::JsonPolicy,
+            );
+
+            let result = decrypt(&user, &ct);
+            assert_eq!(result, Ok(plaintext));
+        }
+
+        #[test]
+        #[should_panic(
+            expected = "called `Result::unwrap()` on an `Err` value: RabeError { details: \"Error in json_to_dnf: could not parse policy as DNF\" }"
+        )]
+        fn nested_and_of_and_policy_panics_on_encrypt() {
+            let (pk, _) = setup();
+            let auth1 = authgen("auth1");
+            let attr_pk = request_authority_pk(&pk, "auth1::A", &auth1);
+            assert!(attr_pk.is_ok());
+            let attr_pk = attr_pk.unwrap();
+
+            // Panics
+            let _ = encrypt(
+                &pk,
+                &[&attr_pk],
+                NESTED_AND_POLICY,
+                PolicyLanguage::JsonPolicy,
+                b"rabe is an Attribute Based Encryption library, written in Rust",
+            );
+        }
+    }
 }

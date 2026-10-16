@@ -139,4 +139,19 @@ mod tests {
             Err(e) => println!("test_traverse: could not parse policy3 {}", e),
         }
     }
+
+    mod findings {
+        use super::*;
+
+        #[test]
+        #[should_panic(expected = "end byte index 1 is out of bounds for string of length 0")]
+        fn negative_attributes_read_leading_exclamation_point_and_panics() {
+            assert!(is_negative(&String::from("!A")));
+            assert!(is_negative(&String::from("!")));
+            assert!(!is_negative(&String::from("A!")));
+            assert!(!is_negative(&String::from("A")));
+            assert!(is_negative(&String::new()));
+            assert!(is_negative(&String::from("\u{e9}A")));
+        }
+    }
 }

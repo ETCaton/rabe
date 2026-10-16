@@ -374,4 +374,22 @@ mod tests {
         let res = decrypt(&sk, &ct_kp_matching);
         assert_eq!(res.is_ok(), false);
     }
+
+    mod findings {
+        use super::*;
+
+        #[test]
+        fn attribute_in_two_leaves_of_key_policy_breaks_decryption() {
+            let (pk, msk) = setup();
+            let plaintext =
+                String::from("rabe is an Attribute Based Encryption library, written in Rust")
+                    .into_bytes();
+
+            // The second branch needs A and C
+            let policy = r#"{"name": "or", "children": [{"name": "and", "children": [{"name": "A"}, {"name": "B"}]}, {"name": "and", "children": [{"name": "A"}, {"name": "C"}]}]}"#;
+            let sk = keygen(&pk, &msk, policy, PolicyLanguage::JsonPolicy).unwrap();
+            let ct = encrypt(&pk, &["A", "C"], &plaintext).unwrap();
+            assert!(decrypt(&sk, &ct).is_err());
+        }
+    }
 }

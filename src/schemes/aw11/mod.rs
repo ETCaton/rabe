@@ -552,4 +552,62 @@ mod tests {
         let pt = decrypt(&_gp, &_bob, &ct_cp);
         assert_eq!(pt.is_ok(), false);
     }
+
+    mod findings {
+        use super::*;
+
+        // AW11 does not check that the policy is the same; swapping it causes a crash in *decrypt*
+        // which is relatively novel among other findings
+        #[test]
+        #[should_panic(expected = "called `Option::unwrap()` on a `None` value")]
+        fn mismatch_ciphertexts_crash_on_decrypt() {
+            let gk = setup();
+            let authgen = authgen(&gk, &["A"]);
+            assert!(authgen.is_some());
+            let (auth_pk, auth_msk) = authgen.unwrap();
+            let sk = keygen(&gk, &auth_msk, "test", &["A"]);
+            assert!(sk.is_ok());
+            let sk = sk.unwrap();
+
+            let plaintext =
+                b"rabe is an Attribute Based Encryption library, written in Rust".to_vec();
+            let ct = encrypt(
+                &gk,
+                &[&auth_pk],
+                r#"{"name": "A"}"#,
+                PolicyLanguage::JsonPolicy,
+                &plaintext,
+            );
+            assert!(ct.is_ok());
+
+            let mut ct = ct.unwrap();
+            ct.policy = (
+                String::from(r#"{"name": "and", "children": [{"name": "A"}, {"name": "A"}]}"#),
+                PolicyLanguage::JsonPolicy,
+            );
+
+            // Panics
+            let _ = decrypt(&gk, &sk, &ct);
+        }
+
+        #[test]
+        #[should_panic(expected = "called `Option::unwrap()` on a `None` value")]
+        fn keygen_panics_for_attributes_in_lower_case() {
+            let gk = setup();
+            let authgen = authgen(&gk, &["A"]);
+            assert!(authgen.is_some());
+            let (_, msk) = authgen.unwrap();
+            let _ = keygen(&gk, &msk, "test", &["a"]);
+        }
+
+        #[test]
+        fn encrypt_drops_leaves_without_a_public_key() {
+            let gk = setup();
+            let (pk, _) = authgen(&gk, &["A"]).unwrap();
+            let policy = r#"{"name": "and", "children": [{"name": "A"}, {"name": "B"}]}"#;
+            let ct = encrypt(&gk, &[&pk], policy, PolicyLanguage::JsonPolicy, b"test").unwrap();
+
+            assert_eq!(ct.c.len(), 1, "leaf from B was silently dropped")
+        }
+    }
 }

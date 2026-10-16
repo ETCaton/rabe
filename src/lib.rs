@@ -2,8 +2,8 @@
 /// The standard serialization library is `serde`. If you want to use `borsh`, you need to specify it as feature.
 ///
 /// For integration in distributed applications contact [us](mailto:info@aisec.fraunhofer.de).
-///!
-///! * Developped by Bramm, Schanzenbach, Schuette
+///
+/// * Developped by Bramm, Schanzenbach, Schuette
 #[cfg(feature = "borsh")]
 extern crate borsh;
 #[cfg(feature = "serde")]

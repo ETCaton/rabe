@@ -805,4 +805,24 @@ mod tests {
         // and now decrypt again
         assert_eq!(cp_decrypt(&sk, &ct).unwrap(), plaintext);
     }
+
+    mod findings {
+        use super::*;
+        // Injective checks are spotty; in this case it causes undecryptable ciphertexts
+        #[test]
+        fn repeated_attributes_break_decryption() {
+            let (pk, msk) = setup();
+            let plaintext =
+                b"rabe is an Attribute Based Encryption library, written in Rust".to_vec();
+
+            let policy = r#"{"name": "and", "children": [{"name": "A"}, {"name": "A"}]}"#;
+            let ct = cp_encrypt(&pk, policy, &plaintext, PolicyLanguage::JsonPolicy).unwrap();
+            let sk = cp_keygen(&msk, &["A"]).unwrap();
+
+            assert_eq!(
+                cp_decrypt(&sk, &ct),
+                Err(RabeError::new("decryption error: \"aead::Error\""))
+            );
+        }
+    }
 }

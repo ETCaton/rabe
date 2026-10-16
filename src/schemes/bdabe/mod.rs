@@ -662,4 +662,30 @@ mod tests {
         let _match = decrypt(&sk, &_ct);
         assert_eq!(_match.is_ok(), false);
     }
+
+    mod findings {
+        use super::*;
+        const NESTED_AND_POLICY: &str = r#"{"name": "and", "children": [{"name": "and", "children": [{"name": "auth1::A"}, {"name": "auth1::A"}]}, {"name": "and", "children": [{"name": "auth1::A"}, {"name": "auth1::A"}]}]}"#;
+
+        // This is another case, besides MKE09, where the `policy_in_dnf` and `dnf` difference
+        // yields a panic
+        #[test]
+        #[should_panic(
+            expected = "called `Result::unwrap()` on an `Err` value: RabeError { details: \"Error in json_to_dnf: could not parse policy as DNF\" }"
+        )]
+        fn nested_and_of_and_panics_on_encrypt() {
+            let (pk, msk) = setup();
+            let auth1 = authgen(&pk, &msk, "auth1");
+            let attr_pk = request_attribute_pk(&pk, &auth1, "auth1::A").unwrap();
+
+            // panics
+            let _ = encrypt(
+                &pk,
+                &[&attr_pk],
+                NESTED_AND_POLICY,
+                PolicyLanguage::JsonPolicy,
+                b"rabe is an Attribute Based Encryption library, written in Rust",
+            );
+        }
+    }
 }

